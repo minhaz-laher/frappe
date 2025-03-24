@@ -196,6 +196,7 @@ frappe.views.BaseList = class BaseList {
 				Kanban: "kanban",
 				Dashboard: "dashboard",
 				Map: "map",
+				Cmlistjss: "list" // CM-Note: We will change this icon as per our need.
 			};
 
 			const label_map = {
@@ -209,6 +210,7 @@ frappe.views.BaseList = class BaseList {
 				Inbox: __("Inbox View"),
 				Tree: __("Tree View"),
 				Map: __("Map View"),
+				Cmlistjss: __("Custom Jss View") // CM-Note: We will change this label as per our need.
 			};
 
 			this.views_menu = this.page.add_custom_button_group(
@@ -968,5 +970,6 @@ frappe.views.view_modes = [
 	"Inbox",
 	"Tree",
 	"Map",
+	"Cmlistjss"
 ];
 frappe.views.is_valid = (view_mode) => frappe.views.view_modes.includes(view_mode);

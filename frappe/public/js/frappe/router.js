@@ -80,6 +80,7 @@ frappe.router = {
 		"image",
 		"inbox",
 		"map",
+		"cmlistjss"
 	],
 	list_views_route: {
 		list: "List",
@@ -93,6 +94,7 @@ frappe.router = {
 		inbox: "Inbox",
 		file: "Home",
 		map: "Map",
+		cmlistjss: "Cmlistjss",
 	},
 	layout_mapped: {},
 

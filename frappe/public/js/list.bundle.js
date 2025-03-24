@@ -30,6 +30,7 @@ import "./frappe/views/map/map_view.js";
 import "./frappe/views/kanban/kanban_view.js";
 import "./frappe/views/inbox/inbox_view.js";
 import "./frappe/views/file/file_view.js";
+import "./frappe/views/cmlistjss/cmlistjssview.js";
 
 import "./frappe/views/treeview.js";
 import "./frappe/views/interaction.js";
