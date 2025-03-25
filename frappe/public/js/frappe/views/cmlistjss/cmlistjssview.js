@@ -5,6 +5,77 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		return "Cmlistjss";
 	}
 
+	constructor(opts) {
+		super(opts);
+
+		// Load assets
+		this.loadAssets();
+	}
+
+	// Load Jspreasdheet Asets.
+	async loadAssets() {
+		try {
+			// Load JS files
+			const jsFiles = await this.loadFilesFromDirectory("/assets/frappe/js/jss/", "js");
+			await Promise.all(jsFiles.map((file) => this.loadJs(file)));
+
+			// Load CSS files
+			const cssFiles = await this.loadFilesFromDirectory("/assets/frappe/css/jss/", "css");
+			await Promise.all(cssFiles.map((file) => this.loadCss(file)));
+
+			console.log("All JSpreadsheet assets loaded successfully!");
+			// this.initializeJSpreadsheet();
+		} catch (error) {
+			console.error("Error loading JSpreadsheet assets:", error);
+		}
+	}
+
+	// Function to load a CSS file dynamically
+	loadCss(href) {
+		return new Promise((resolve, reject) => {
+			if (document.querySelector(`link[href="${href}"]`)) {
+				resolve(); // Already loaded
+				return;
+			}
+			const link = document.createElement("link");
+			link.rel = "stylesheet";
+			link.href = href;
+			link.onload = resolve;
+			link.onerror = () => reject(new Error(`Failed to load CSS: ${href}`));
+			document.head.appendChild(link);
+		});
+	}
+
+	// Function to load a JS file dynamically
+	loadJs(src) {
+		return new Promise((resolve, reject) => {
+			if (document.querySelector(`script[src="${src}"]`)) {
+				resolve(); // Already loaded
+				return;
+			}
+			const script = document.createElement("script");
+			script.src = src;
+			script.onload = resolve;
+			script.onerror = () => reject(new Error(`Failed to load JS: ${src}`));
+			document.body.appendChild(script);
+		});
+	}
+
+	// Function to get file names from a directory
+	async loadFilesFromDirectory(path, fileType) {
+		try {
+			const files = {
+				js: ["jspreadsheet.js", "jsuites.js", "render.js", "parser.js", "formula-pro.js"],
+				css: ["jspreadsheet.css", "jsuites.css", "jspreadsheet.themes.css"],
+			};
+
+			return files[fileType]?.map((file) => `${path}${file}`) || [];
+		} catch (error) {
+			console.error(`Failed to fetch file list from ${path}:`, error);
+			return [];
+		}
+	}
+
 	setup_defaults() {
 		super.setup_defaults().then();
 		this.view = "Cmlistjss"; // We can change viewname here.
@@ -32,7 +103,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 
 	refresh() {
 		return super.refresh().then(() => {
-			const data = this.data; 	// IN:: Use this data in JSS.
+			const data = this.data; // IN:: Use this data in JSS.
 			// this.render_header(refresh_header);
 			// this.render_count();
 			// this.update_checkbox();
@@ -40,7 +111,6 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			// this.setup_realtime_updates();
 			// this.apply_styles_basedon_dropdown();
 		});
-
 	}
 
 	render() {
@@ -50,11 +120,11 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 
 	render_header(refresh_header = false) {
 		// Note:: This method is intentionally overridden as the parent implementation is not needed.
-	};
+	}
 	render_count() {
 		// Note:: This method is intentionally overridden as the parent implementation is not needed.
-	};
+	}
 	update_checkbox() {
 		// Note:: This method is intentionally overridden as the parent implementation is not needed.
-	};
+	}
 };
