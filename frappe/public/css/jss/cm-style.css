@@ -1,0 +1,11 @@
+/*
+    We can improve this by converting it into SCSS.
+*/
+
+.cm-jss-parent-container {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	overflow: auto;
+	width: 100%;
+}
