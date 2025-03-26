@@ -135,4 +135,4 @@ To setup the repository locally follow the steps mentioned below:
 	</a>
 </div>
 
-Test commit - 2025
+Test commit
