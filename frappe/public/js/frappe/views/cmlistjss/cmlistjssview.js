@@ -171,6 +171,15 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		this.setup_columns();
 		this.settings.onload && this.settings.onload(this);
 		this.show_restricted_list_indicator_if_applicable();
+		this.setup_custom_event();
+	}
+
+	/**
+	 * Attaches a delegated event listener to the sidebar collapse link.
+	 * When clicked, it updates the viewport to adjust for sidebar changes.
+	 */
+	setup_custom_event() {
+		$(".body-sidebar").on("click", ".collapse-sidebar-link", this.set_jss_viewport.bind(this));
 	}
 
 	/**
@@ -684,6 +693,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 					minDimensions: [0, 0], // Minimum table size
 					tableWidth: this.jss_det.tableWidth,
 					tableHeight: this.jss_det.tableHeight,
+					columnSorting: false,
 				},
 			],
 		});
