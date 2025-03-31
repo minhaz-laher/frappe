@@ -483,12 +483,48 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 */
 	update_header_checkbox() {
 		if (this.jss_det.$header_checkbox) {
+			const rowCount = this.get_rows_count();
 			this.jss_det.$header_checkbox.checked =
-				this.jss_det.data.length > 0 &&
-				this.jss_det.data.length === this.jss_det.checked_row_det.length;
+				rowCount > 0 && rowCount === this.jss_det.checked_row_det.length;
 		}
 	}
 
+	/**
+	 * Handles row selection updates after data modification.
+	 */
+	handle_row_selection_after_data_update() {
+		if (this.start === 0) {
+			// Retrieve the latest JSS data
+			const jss_data = this.get_jss_data() || [];
+			const { checked_row_det, columnsIdx } = this.jss_det;
+
+			// Determine which checked rows still exist and which should be removed
+			const { updateRowCheckboxDet, removeCheckedRowDet } = checked_row_det.reduce(
+				(acc, docName, i) => {
+					const rowIdx = jss_data.findIndex((row) => row.name === docName);
+					rowIdx === -1
+						? acc.removeCheckedRowDet.push(i) // Row no longer exists, mark for removal
+						: acc.updateRowCheckboxDet.push(rowIdx); // Row exists, mark for checkbox update
+					return acc;
+				},
+				{ updateRowCheckboxDet: [], removeCheckedRowDet: [] }
+			);
+
+			// Remove invalid checked rows in reverse order for efficient deletion
+			for (let i = removeCheckedRowDet.length - 1; i >= 0; i--) {
+				checked_row_det.splice(removeCheckedRowDet[i], 1);
+			}
+
+			// Update checkbox states for remaining checked rows
+			updateRowCheckboxDet.forEach((rowIdx) => {
+				this.setValueFromCoords(columnsIdx._rowCheckbox, rowIdx, true, true);
+			});
+		} else {
+			// Update the header checkbox and toggle action menu based on row selection
+			this.update_header_checkbox();
+			this.toggle_actions_menu_button(this.jss_det.checked_row_det.length > 0);
+		}
+	}
 	//#endregion Row checkboxes and the action menu functions.
 
 	//#region Manage spreadsheet height
@@ -537,18 +573,6 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 
 	//#region Spreadsheet helper functions
 	/**
-	 * Retrieves the current data from JSpreadsheet.
-	 * @returns {Array} The current JSpreadsheet data.
-	 */
-	get_jss_data() {
-		return this.jss_instance[0].getData();
-	}
-
-	get_jss_row_data(rowIdx) {
-		return this.jss_instance[0].getRowData(rowIdx);
-	}
-
-	/**
 	 * Destroy the existing sheet.
 	 */
 	destrotySheet() {
@@ -556,17 +580,11 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	}
 
 	/**
-	 * Updates the JSpreadsheet instance with new data.
+	 * Retrieves the total number of rows in the JSpreadsheet instance.
+	 * @returns {number} The count of rows currently present in the spreadsheet.
 	 */
-	update_jss_data(updatedData, adjustDimension) {
-		this.jss_instance[0].loadData(updatedData, adjustDimension);
-	}
-
-	/**
-	 * Handles refreshing the data update.
-	 */
-	handle_list_data_update() {
-		this.update_jss_data(this.jss_det.data, true);
+	get_rows_count() {
+		return this.jss_instance[0].rows.length;
 	}
 	//#endregion Spreadsheet helper functions
 
@@ -635,6 +653,43 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 
 			return formattedRow;
 		});
+	}
+
+	/**
+	 * Retrieves the current data from JSpreadsheet.
+	 * @returns {Array} The current JSpreadsheet data.
+	 */
+	get_jss_data() {
+		return this.jss_instance[0].getData();
+	}
+
+	/**
+	 * Retrieves the data for a specific row in the JSpreadsheet instance.
+	 *
+	 * @param {number} rowIdx - The index of the row to fetch data from.
+	 * @returns {Array} The data of the specified row.
+	 */
+	get_jss_row_data(rowIdx) {
+		return this.jss_instance[0].getRowData(rowIdx);
+	}
+
+	/**
+	 * Updates the JSpreadsheet instance with new data.
+	 */
+	update_jss_data(updatedData, adjustDimension) {
+		this.jss_instance[0].loadData(updatedData, adjustDimension);
+	}
+
+	/**
+	 * Set a cell value
+	 *
+	 * @param colIdx
+	 * @param rowIdx
+	 * @param value value
+	 * @param force value over readonly cells
+	 */
+	setValueFromCoords(colIdx, rowIdx, value, force) {
+		this.jss_instance[0].setValueFromCoords(colIdx, rowIdx, value, force);
 	}
 
 	//#endregion Manage JSpreadsheet Data related functions.
@@ -759,6 +814,14 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		this.jss_det.isSpreadsheetInitialized = true;
 
 		console.log("Spreadsheet initialized!");
+	}
+
+	/**
+	 * Handles refreshing the data update.
+	 */
+	handle_list_data_update() {
+		this.update_jss_data(this.jss_det.data, true);
+		this.handle_row_selection_after_data_update();
 	}
 	//#endregion Init JSpreadsheet related functions.
 
