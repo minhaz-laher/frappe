@@ -140,14 +140,24 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * This key is required to enable the full functionality of JSpreadsheet.
 	 * Currently, a temporary license is used, but in the future, this will be fetched via an API call.
 	 */
-	load_jss_license() {
-		// Set a temporary JSpreadsheet license key (valid for one day).
-		// In future development, this key will be dynamically retrieved from an API.
-		jspreadsheet.setLicense(
-			"MWJlNDMwODIxYzk2ZTAxODE5YjdhYTUwNWI2NGVlOTI3ZDVmNDczYjQxNDBlMzg3NzkwY2Q4YTI0ODg2NWMzYzNmM2MzYmE3YzcyYTIxM2FjODFmMWE3Mjk5YzA1ZGVhMmFmNzBhZTFmMWI4OWMzMzcwNzM5ZjQ1NmYwYTY2OTYsZXlKamJHbGxiblJKWkNJNklpSXNJbTVoYldVaU9pSktjM0J5WldGa2MyaGxaWFFpTENKa1lYUmxJam94TnpRek1qSTJOall5TENKa2IyMWhhVzRpT2xzaWFuTndjbVZoWkhOb1pXVjBMbU52YlNJc0ltTnZaR1Z6WVc1a1ltOTRMbWx2SWl3aWFuTm9aV3hzTG01bGRDSXNJbU56WWk1aGNIQWlMQ0ozWldJaUxDSnNiMk5oYkdodmMzUWlYU3dpY0d4aGJpSTZJak0wSWl3aWMyTnZjR1VpT2xzaWRqY2lMQ0oyT0NJc0luWTVJaXdpZGpFd0lpd2lkakV4SWl3aVkyaGhjblJ6SWl3aVptOXliWE1pTENKbWIzSnRkV3hoSWl3aWNHRnljMlZ5SWl3aWNtVnVaR1Z5SWl3aVkyOXRiV1Z1ZEhNaUxDSnBiWEJ2Y25SbGNpSXNJbUpoY2lJc0luWmhiR2xrWVhScGIyNXpJaXdpYzJWaGNtTm9JaXdpY0hKcGJuUWlMQ0p6YUdWbGRITWlMQ0pqYkdsbGJuUWlMQ0p6WlhKMlpYSWlMQ0p6YUdGd1pYTWlYU3dpWkdWdGJ5STZkSEoxWlgwPQ=="
-		);
+	async load_jss_license() {
+		try {
+			// Fetch license data from the 'jss_license' doctype
+			const response = await frappe.db.get_single_value("jss_license", "jss_license");
+			// Note: We will encrypt license in future task.
 
-		this.jss_license_loaded = true;
+			// Check if a valid license key exists
+			if (response) {
+				jspreadsheet.setLicense(response);
+				console.log("JSpreadsheet license loaded successfully!");
+				this.jss_license_loaded = true;
+			} else {
+				console.error("No JSpreadsheet license found in 'jss_license' doctype.");
+				this.jss_license_loaded = true; // Added just to display the spreadsheet without a license.
+			}
+		} catch (error) {
+			console.error("Failed to load JSpreadsheet license:", error);
+		}
 	}
 	//#endregion Load JSpreadsheet assets and their license.
 
@@ -168,6 +178,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * Overrides the parent method
 	 */
 	setup_view() {
+		this.init_jss_container();
 		this.setup_columns();
 		this.settings.onload && this.settings.onload(this);
 		this.show_restricted_list_indicator_if_applicable();
@@ -253,6 +264,8 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 				},
 			});
 		}
+
+		this.prepare_jss_source_header();
 	}
 
 	/**
@@ -289,6 +302,31 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	}
 
 	/**
+	 * Overrides the parent method to prepare the data object.
+	 * @param {*} r - The response object containing the data to be processed.
+	 */
+	prepare_data(r) {
+		let data = r.message || {};
+
+		// extract user_info for assignments
+		Object.assign(frappe.boot.user_info, data.user_info);
+		delete data.user_info;
+
+		data = !Array.isArray(data) ? frappe.utils.dict(data.keys, data.values) : data;
+
+		if (this.start === 0) {
+			this.data = data.uniqBy((d) => d.name);
+			this.jss_det.data = this.prepare_jss_data(this.data);
+		} else {
+			this.jss_det.data = this.get_jss_data()
+				.concat(this.prepare_jss_data(data))
+				.uniqBy((d) => d.name);
+
+			this.data = this.data.concat(data).uniqBy((d) => d.name);
+		}
+	}
+
+	/**
 	 * Overrides the parent method to render the JSpreadsheet instance.
 	 *
 	 * - Removes any existing JSpreadsheet container to prevent duplication.
@@ -296,23 +334,25 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * - If not, it sets an interval to periodically check for JSpreadsheet's availability and initializes it once it is loaded.
 	 */
 	render() {
-		// Remove the existing JSpreadsheet container if it exists to avoid duplication
-		this.$jss_container?.remove();
-
-		// Check if JSpreadsheet is already loaded and the license is valid
-		if (typeof jspreadsheet !== "undefined" && this.jss_license_loaded) {
-			this.init_spreadsheet(); // Initialize the spreadsheet immediately
-			return;
-		}
-
-		// If JSpreadsheet is not yet available, set an interval to check periodically
-		const checkSpreadsheet = setInterval(() => {
-			// Once JSpreadsheet is loaded and the license is available, initialize it
+		// Check if the spreadsheet is already initialized,  as the "render" method can be called on data updates as well.
+		if (this.jss_det.isSpreadsheetInitialized) {
+			this.handle_list_data_update();
+		} else {
+			// Check if JSpreadsheet is already loaded and the license is valid
 			if (typeof jspreadsheet !== "undefined" && this.jss_license_loaded) {
-				clearInterval(checkSpreadsheet); // Stop checking once loaded
-				this.init_spreadsheet();
+				this.init_spreadsheet(); // Initialize the spreadsheet immediately
+				return;
 			}
-		}, 500); // Check every 500ms
+
+			// If JSpreadsheet is not yet available, set an interval to check periodically
+			const checkSpreadsheet = setInterval(() => {
+				// Once JSpreadsheet is loaded and the license is available, initialize it
+				if (typeof jspreadsheet !== "undefined" && this.jss_license_loaded) {
+					clearInterval(checkSpreadsheet); // Stop checking once loaded
+					this.init_spreadsheet();
+				}
+			}, 500); // Check every 500ms
+		}
 	}
 
 	/**
@@ -364,7 +404,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * @param {boolean} newValue - Whether the checkbox is checked (true) or unchecked (false).
 	 */
 	handle_row_checkbox_change(rowIdx, newValue) {
-		const recordName = this.jss_det.data[rowIdx]?.name;
+		const recordName = this.get_jss_row_data(rowIdx)?.name;
 		if (!recordName) return;
 
 		const checkedRows = this.jss_det.checked_row_det;
@@ -495,15 +535,40 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	}, 300);
 	//#endregion Manage spreadsheet height
 
-	//#region Common functions
+	//#region Spreadsheet helper functions
 	/**
 	 * Retrieves the current data from JSpreadsheet.
 	 * @returns {Array} The current JSpreadsheet data.
 	 */
 	get_jss_data() {
-		return this.jss_det.data || [];
+		return this.jss_instance[0].getData();
 	}
-	//#endregion Common functions
+
+	get_jss_row_data(rowIdx) {
+		return this.jss_instance[0].getRowData(rowIdx);
+	}
+
+	/**
+	 * Destroy the existing sheet.
+	 */
+	destrotySheet() {
+		jspreadsheet.destroy(this.jss_instance[0].parent.el, true);
+	}
+
+	/**
+	 * Updates the JSpreadsheet instance with new data.
+	 */
+	update_jss_data(updatedData, adjustDimension) {
+		this.jss_instance[0].loadData(updatedData, adjustDimension);
+	}
+
+	/**
+	 * Handles refreshing the data update.
+	 */
+	handle_list_data_update() {
+		this.update_jss_data(this.jss_det.data, true);
+	}
+	//#endregion Spreadsheet helper functions
 
 	//#region JSpreadsheet events
 	/**
@@ -556,23 +621,16 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * Prepares and assigns the data to the JSpreadsheet instance.
 	 * It separates valid fields from additional fields into an `otherDet` object.
 	 */
-	prepare_jss_data() {
-		// Validate if data and columns exist before processing.
-		if (!this.data?.length || !this.jss_det?.columns?.length) {
-			console.error("Invalid or empty data/columns.");
-			return;
-		}
-
-		// Create a Set of valid field names for quick lookup.
-		const validFields = new Set(this.jss_det.columns.map(({ name }) => name));
-
+	prepare_jss_data(data = []) {
 		// Map the input data, separating known fields from additional fields.
-		this.jss_det.data = this.data.map((row) => {
+		return data.map((row) => {
 			const formattedRow = { _otherDet: {} }; // Object to store valid fields and other details.
 
 			// Iterate through each key in the row and categorize it.
 			for (const key in row) {
-				(validFields.has(key) ? formattedRow : formattedRow._otherDet)[key] = row[key];
+				(this.jss_det.validListFields.has(key) ? formattedRow : formattedRow._otherDet)[
+					key
+				] = row[key];
 			}
 
 			return formattedRow;
@@ -585,9 +643,10 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	/**
 	 * Prepares the column definitions for JSpreadsheet based on the data type of the Doctype.
 	 */
-	prepare_source_header() {
+	prepare_jss_source_header() {
 		// Ensure columns are available before proceeding
 		if (!this.columns) return;
+		this.jss_det.validListFields = new Set(); // Use Set for faster lookups
 
 		// Define hidden columns for internal use
 		const hiddenColumns = [
@@ -598,13 +657,16 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		// Transform columns into JSpreadsheet format
 		const visibleColumns = this.columns
 			.filter((col) => col.type === "Field" || col.type === "Subject") // Process only 'Field' type columns
-			.map((col) => ({
-				name: col.df.fieldname,
-				title: col.df.label,
-				type: "text", // Determine based on col.field type if needed
-				width: 150,
-				wrap: true,
-			}));
+			.map((col) => {
+				this.jss_det.validListFields.add(col.df.fieldname);
+				return {
+					name: col.df.fieldname,
+					title: col.df.label,
+					type: "text", // Determine based on col.field type if needed
+					width: 150,
+					wrap: true,
+				};
+			});
 
 		// Combine hidden and visible columns
 		this.jss_det.columns = [...hiddenColumns, ...visibleColumns];
@@ -636,10 +698,12 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		return {
 			columns: [], // Stores column configurations
 			columnsIdx: {}, // Maps column names to their indexes (for internal use)
-			data: [], // Holds JSpreadsheet data
+			validListFields: new Set(), // Stores valid default list field names. (for internal use)
+			data: [], // Holds spreadsheet data
 			tableWidth: 800, // Default spreadsheet width
 			tableHeight: 500, // Default spreadsheet height
 			checked_row_det: [], // Stores details of checked rows
+			isSpreadsheetInitialized: undefined, // Store boolean value for the spreadsheet is initialized or not.
 		};
 	}
 
@@ -648,19 +712,14 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * This function sequentially executes required setup steps using `frappe.run_serially()`.
 	 */
 	init_spreadsheet() {
-		this.init_container();
-
-		frappe.run_serially([
-			() => this.prepare_source_header(),
-			() => this.prepare_jss_data(),
-			() => this.render_spreadsheet(),
-		]);
+		// NOTE: We can add here more function which is related to jspreadsheet intialized./ NOTE: Additional functions related to JSpreadsheet initialization can be added here.
+		this.render_spreadsheet();
 	}
 
 	/**
 	 * Creates a container element for JSpreadsheet and appends it to the result container.
 	 */
-	init_container() {
+	init_jss_container() {
 		this.$jss_parent_container = $('<div class="cm-jss-parent-container"></div>')
 			.append((this.$jss_container = $('<div id="cm-jss-container"></div>')))
 			.appendTo(this.$result);
@@ -697,6 +756,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 				},
 			],
 		});
+		this.jss_det.isSpreadsheetInitialized = true;
 
 		console.log("Spreadsheet initialized!");
 	}
