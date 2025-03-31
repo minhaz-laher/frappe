@@ -820,8 +820,18 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * Handles refreshing the data update.
 	 */
 	handle_list_data_update() {
+		const jss = this.jss_instance[0];
+
+		// Preserve current visible row and column
+		const currentVisibleRow = jss.visibleRows?.[0] ?? 0;
+		const currentVisibleCol = jss.visibleCols?.[0] ?? 0;
+
+		// Update JSpreadsheet data and reapply row selection
 		this.update_jss_data(this.jss_det.data, true);
 		this.handle_row_selection_after_data_update();
+
+		// Restore previous scroll position
+		jss.goto(currentVisibleRow, currentVisibleCol);
 	}
 	//#endregion Init JSpreadsheet related functions.
 
