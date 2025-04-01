@@ -22,6 +22,8 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		// Load required assets for JSpreadsheet.
 		this.loadAssets();
 
+		this._jss_element_factory = new JssElementFactory();
+
 		// Bind the `this` context to onResize to ensure it refers to the instance.
 		// Bind the `this` context to onResize and add the event listener.
 		this.onResize = this.onResize.bind(this);
@@ -168,7 +170,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 */
 	setup_defaults() {
 		this.view = "Cmlistjss"; // We can change view name here.
-		this.jss_det = this.initializeJSSDetails(); // Initialize JSpreadsheet-related data
+		this.jss_det = this.initialize_jSS_details(); // Initialize JSpreadsheet-related data
 		return super.setup_defaults().then((r) => {
 			return r; // IN:: We can improve this syntax. The currently added syntax is just for testing purposes."
 		});
@@ -182,15 +184,15 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		this.setup_columns();
 		this.settings.onload && this.settings.onload(this);
 		this.show_restricted_list_indicator_if_applicable();
-		this.setup_custom_event();
+		this.setup_events();
 	}
 
 	/**
-	 * Attaches a delegated event listener to the sidebar collapse link.
-	 * When clicked, it updates the viewport to adjust for sidebar changes.
+	 * Overrides the parent method to setup events.
 	 */
-	setup_custom_event() {
-		$(".body-sidebar").on("click", ".collapse-sidebar-link", this.set_jss_viewport.bind(this));
+	setup_events() {
+		this.setup_body_sideber_change_event();
+		this.jss_long_text_field_button_event();
 	}
 
 	/**
@@ -397,6 +399,35 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	}
 	//#endregion Override parent methods to achieve desired functionality in the JSpreadsheet view.
 
+	//#region Setup Events
+	/**
+	 * Attaches a delegated event listener to the sidebar collapse link.
+	 * When clicked, it updates the viewport to adjust for sidebar changes.
+	 */
+	setup_body_sideber_change_event() {
+		$(".body-sidebar").on("click", ".collapse-sidebar-link", this.set_jss_viewport.bind(this));
+	}
+
+	/**
+	 * Handles click events on long text field view buttons.
+	 * Displays the corresponding cell value in a dialog.
+	 */
+	jss_long_text_field_button_event() {
+		this.$jss_parent_container.on("click", ".jss-grid-view-icon", (e) => {
+			const { x, y } = e.currentTarget.dataset;
+			const value = this.get_value_from_coords(+x, +y);
+
+			// We will use custom dialog in future.
+			frappe.msgprint({
+				title: __("Information"),
+				message: __(value),
+				indicator: "blue",
+			});
+		});
+	}
+
+	//#endregion Setup Events
+
 	//#region Row checkboxes and the action menu functions.
 	/**
 	 * Handles the change event for a row checkbox, updating the checked row details accordingly.
@@ -517,7 +548,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 
 			// Update checkbox states for remaining checked rows
 			updateRowCheckboxDet.forEach((rowIdx) => {
-				this.setValueFromCoords(columnsIdx._rowCheckbox, rowIdx, true, true);
+				this.set_value_from_coords(columnsIdx._rowCheckbox, rowIdx, true, true);
 			});
 		} else {
 			// Update the header checkbox and toggle action menu based on row selection
@@ -575,7 +606,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	/**
 	 * Destroy the existing sheet.
 	 */
-	destrotySheet() {
+	destroty_sheet() {
 		jspreadsheet.destroy(this.jss_instance[0].parent.el, true);
 	}
 
@@ -587,6 +618,23 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		return this.jss_instance[0].rows.length;
 	}
 	//#endregion Spreadsheet helper functions
+
+	//#region Customize cell render related functions.
+	/**
+	 * Renders a long text field in the cell by delegating to `JssElementFactory`'s `cm_render_long_text_element` method.
+	 *
+	 * @param {HTMLElement} td - The cell to render the value in.
+	 * @param {number|string} value - The value to display.
+	 * @param {number} x - The row index.
+	 * @param {number} y - The column index.
+	 * @param {worksheetInstance} instance - The worksheet instance.
+	 * @param {Column} options - Column options (width, type, etc.).
+	 */
+	cm_render_long_text_field(td, value, x, y, instance, options) {
+		// Delegate to JssElementFactory's method for rendering long text
+		this._jss_element_factory.cm_render_long_text_element(td, value, x, y);
+	}
+	//#endregion Customize cell render related functions.
 
 	//#region JSpreadsheet events
 	/**
@@ -632,7 +680,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		// Prevent sorting for the row selection checkbox column
 		return +column === this.jss_det.columnsIdx._rowCheckbox ? false : undefined;
 	}
-	//#endregionJSpreadsheet events
+	//#endregion JSpreadsheet events
 
 	//#region Manage JSpreadsheet Data related functions.
 	/**
@@ -642,7 +690,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	prepare_jss_data(data = []) {
 		// Map the input data, separating known fields from additional fields.
 		return data.map((row) => {
-			const formattedRow = { _otherDet: {} }; // Object to store valid fields and other details.
+			const formattedRow = { _otherDet: {}, _rowCheckbox: false }; // Object to store valid fields and other details.
 
 			// Iterate through each key in the row and categorize it.
 			for (const key in row) {
@@ -674,6 +722,19 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	}
 
 	/**
+	 * Gets the cell value at (x, y), either processed or raw.
+	 *
+	 * @param {number} x - Row index.
+	 * @param {number} y - Column index.
+	 * @param {boolean} [processed] - Return processed value if true.
+	 * @param {boolean} [raw] - Return unformatted value if true.
+	 * @returns {*} Cell value.
+	 */
+	get_value_from_coords(x, y, processed, raw) {
+		return this.jss_instance[0].getValueFromCoords(x, y, processed, raw);
+	}
+
+	/**
 	 * Updates the JSpreadsheet instance with new data.
 	 */
 	update_jss_data(updatedData, adjustDimension) {
@@ -688,13 +749,79 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * @param value value
 	 * @param force value over readonly cells
 	 */
-	setValueFromCoords(colIdx, rowIdx, value, force) {
+	set_value_from_coords(colIdx, rowIdx, value, force) {
 		this.jss_instance[0].setValueFromCoords(colIdx, rowIdx, value, force);
 	}
 
 	//#endregion Manage JSpreadsheet Data related functions.
 
 	//#region JSpreadsheet Header related functions.
+
+	/**
+	 * Generates the field header based on field type and column settings.
+	 */
+	generate_field_header_by_field_type(col) {
+		// Set default header properties common to all field types
+		const defaultHeader = {
+			name: col.df.fieldname,
+			title: col.df.label,
+			type: "text", // Default type as text, can be overridden
+			width: +col.df.width || 230, // Default width
+			wrap: true, // Enable wrapping by default
+		};
+
+		// Adjust properties based on field type
+		switch (col.df.fieldtype) {
+			case "Long Text":
+				defaultHeader.width = +col.df.width || 350;
+				defaultHeader.render = this.cm_render_long_text_field.bind(this);
+				break;
+
+			case "Int":
+			case "Float":
+				defaultHeader.type = "number"; // Use number type for Int and Float
+				defaultHeader.width = +col.df.width || 100;
+				// Pending:: Apply mask based on database
+				break;
+
+			case "Currency":
+				// Customize for Currency (could be a formatted number)
+				// defaultHeader.type = "number";
+				// defaultHeader.width = +col.df.width || 100;
+				break;
+
+			case "Date":
+				// Handle Date, Time, and Datetime types here
+				// IN :: In the future, we need to set the format according to the DB format.
+				defaultHeader.type = "calendar";
+				defaultHeader.options = { format: "DD/MM/YYYY" };
+				break;
+			case "Time":
+				defaultHeader.type = "calendar";
+				break;
+			case "Datetime":
+				defaultHeader.type = "calendar";
+				break;
+			case "Percent":
+				// For Percent, we might want to handle it differently, like appending "%" symbol
+				// defaultHeader.type = "number";
+				// defaultHeader.options = { style: "percent" };
+				// Apply additional logic for formatting as a percentage
+				break;
+
+			case "Data":
+				// No change to the defaultHeader data for "Data" type
+				break;
+
+			default:
+				// No changes for unsupported types
+				break;
+		}
+
+		// Return the final header configuration
+		return defaultHeader;
+	}
+
 	/**
 	 * Prepares the column definitions for JSpreadsheet based on the data type of the Doctype.
 	 */
@@ -706,7 +833,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		// Define hidden columns for internal use
 		const hiddenColumns = [
 			{ name: "_otherDet", type: "hidden" },
-			{ name: "_rowCheckbox", type: "checkbox", width: 80 },
+			{ name: "_rowCheckbox", type: "checkbox", width: 38 },
 		];
 
 		// Transform columns into JSpreadsheet format
@@ -714,13 +841,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			.filter((col) => col.type === "Field" || col.type === "Subject") // Process only 'Field' type columns
 			.map((col) => {
 				this.jss_det.validListFields.add(col.df.fieldname);
-				return {
-					name: col.df.fieldname,
-					title: col.df.label,
-					type: "text", // Determine based on col.field type if needed
-					width: 150,
-					wrap: true,
-				};
+				return this.generate_field_header_by_field_type(col);
 			});
 
 		// Combine hidden and visible columns
@@ -749,7 +870,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * Initializes JSpreadsheet-related configuration and data.
 	 * @returns {Object} JSpreadsheet configuration with default values.
 	 */
-	initializeJSSDetails() {
+	initialize_jSS_details() {
 		return {
 			columns: [], // Stores column configurations
 			columnsIdx: {}, // Maps column names to their indexes (for internal use)
@@ -842,5 +963,61 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		window.removeEventListener("resize", this.onResize);
 		frappe.router.off("change", this.routeChangeHandler);
 	}
-	//#endregionCleanup functions
+	//#endregion Cleanup functions
 };
+
+class JssElementFactory {
+	constructor() {
+		// Precompiled template for long text field
+		this.templates = {
+			longTextWrapper: this.create_long_text_element(), // Precompiled long text template
+		};
+	}
+
+	//#region Long text field element
+	/**
+	 * Creates and precompiles the long text element (wrapper, span, and view icon)
+	 */
+	create_long_text_element() {
+		const wrapper = document.createElement("div");
+		wrapper.className = "long-text-field-wrapper";
+
+		const span = document.createElement("span");
+		span.className = "long-text-field-span";
+
+		const viewButton = document.createElement("span");
+		viewButton.className = "jss-grid-view-icon";
+		viewButton.innerHTML = `<i class="fa fa-eye"></i>`; // Font Awesome Eye Icon
+
+		// Append the elements to form the structure
+		wrapper.appendChild(span);
+		wrapper.appendChild(viewButton);
+
+		return wrapper;
+	}
+
+	/**
+	 * Renders a long text field in the table cell.
+	 * @param {HTMLElement} td - Target cell.
+	 * @param {string|number} value - Display value.
+	 * @param {number} x - Row index.
+	 * @param {number} y - Column index.
+	 */
+	cm_render_long_text_element(td, value, x, y) {
+		if (!td) return;
+
+		// Clone precompiled wrapper (deep clone to ensure unique instance for each use)
+		const wrapper = this.templates.longTextWrapper.cloneNode(true); // Clone the wrapper element, not the template function
+		// Set the content of the span to the provided value
+		wrapper.firstChild.textContent = value;
+
+		// Bind the data-x and data-y attributes to the view button
+		const viewButton = wrapper.lastChild;
+		viewButton.dataset.x = x;
+		viewButton.dataset.y = y;
+
+		// Efficiently replace existing content with the new wrapper
+		td.replaceChildren(wrapper);
+	}
+	//#endregion Long text field element
+}
