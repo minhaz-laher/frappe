@@ -22,9 +22,10 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		// Load required assets for JSpreadsheet.
 		this.loadAssets();
 
+		// Prepare an index-function mapping for click events inside JSpreadsheet.
+		this.prepare_cm_idx_fn_mapping_det();
 		this._jss_element_factory = new JssElementFactory();
 
-		// Bind the `this` context to onResize to ensure it refers to the instance.
 		// Bind the `this` context to onResize and add the event listener.
 		this.onResize = this.onResize.bind(this);
 		window.addEventListener("resize", this.onResize);
@@ -33,6 +34,16 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		// // Listen for page changes and execute cleanup.
 		// this.routeChangeHandler = () => this.cleanup();
 		// frappe.router.on("change", this.routeChangeHandler);
+	}
+
+	/**
+	 * Prepare an index-function mapping for click events inside JSpreadsheet.
+	 */
+	prepare_cm_idx_fn_mapping_det() {
+		this.cmIdxFnMappingDet = {
+			1: { handlerFn: this.handle_long_text_field_button_click.bind(this) },
+			2: { handlerFn: this.handle_link_field_click.bind(this) },
+		};
 	}
 
 	//#region Load JSpreadsheet assets and their license.
@@ -192,7 +203,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 */
 	setup_events() {
 		this.setup_body_sideber_change_event();
-		this.jss_long_text_field_button_event();
+		this.jss_handle_clickable_content();
 	}
 
 	/**
@@ -409,20 +420,36 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	}
 
 	/**
-	 * Handles click events on long text field view buttons.
-	 * Displays the corresponding cell value in a dialog.
+	 * Handles click event on long text field buttons.
 	 */
-	jss_long_text_field_button_event() {
-		this.$jss_parent_container.on("click", ".jss-grid-view-icon", (e) => {
-			const { x, y } = e.currentTarget.dataset;
-			const value = this.get_value_from_coords(+x, +y);
+	handle_long_text_field_button_click(e, x, y) {
+		const value = this.get_value_from_coords(x, y);
 
-			// We will use custom dialog in future.
-			frappe.msgprint({
-				title: __("Information"),
-				message: __(value),
-				indicator: "blue",
-			});
+		// We will use custom dialog in future.
+		frappe.msgprint({
+			title: __("Information"),
+			message: __(value),
+			indicator: "blue",
+		});
+	}
+
+	/**
+	 * Handles click event on link fields.
+	 */
+	handle_link_field_click(e, x, y) {
+		const value = this.get_value_from_coords(x, y);
+		frappe.set_route("Form", this.doctype, value);
+	}
+
+	/**
+	 * Handles click events on dynamic elements using event delegation.
+	 */
+	jss_handle_clickable_content() {
+		this.$jss_parent_container.on("click", ".cm-clickable-content", (e) => {
+			const keyIdx = e.currentTarget.dataset.keyIdx;
+			const { x, y } = e.target.closest("td")?.dataset;
+
+			this.cmIdxFnMappingDet[+keyIdx]?.handlerFn(e, +x, +y);
 		});
 	}
 
@@ -630,9 +657,24 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * @param {worksheetInstance} instance - The worksheet instance.
 	 * @param {Column} options - Column options (width, type, etc.).
 	 */
-	cm_render_long_text_field(td, value, x, y, instance, options) {
+	cm_render_long_text_element(td, value, x, y, instance, options) {
 		// Delegate to JssElementFactory's method for rendering long text
 		this._jss_element_factory.cm_render_long_text_element(td, value, x, y);
+	}
+
+	/**
+	 * Renders a link element.
+	 *
+	 * @param {HTMLElement} td - The cell to render the value in.
+	 * @param {number|string} value - The value to display.
+	 * @param {number} x - The row index.
+	 * @param {number} y - The column index.
+	 * @param {worksheetInstance} instance - The worksheet instance.
+	 * @param {Column} options - Column options (width, type, etc.).
+	 */
+	cm_render_link_element(td, value, x, y, instance, options) {
+		// Delegate to JssElementFactory's method for rendering long text
+		this._jss_element_factory.cm_render_link_element(td, value, x, y);
 	}
 	//#endregion Customize cell render related functions.
 
@@ -774,7 +816,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		switch (col.df.fieldtype) {
 			case "Long Text":
 				defaultHeader.width = +col.df.width || 350;
-				defaultHeader.render = this.cm_render_long_text_field.bind(this);
+				defaultHeader.render = this.cm_render_long_text_element.bind(this);
 				break;
 
 			case "Int":
@@ -808,9 +850,13 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 				// defaultHeader.options = { style: "percent" };
 				// Apply additional logic for formatting as a percentage
 				break;
-
 			case "Data":
 				// No change to the defaultHeader data for "Data" type
+				break;
+			case undefined:
+				if (col.type === "Subject") {
+					defaultHeader.render = this.cm_render_link_element.bind(this);
+				}
 				break;
 
 			default:
@@ -971,6 +1017,7 @@ class JssElementFactory {
 		// Precompiled template for long text field
 		this.templates = {
 			longTextWrapper: this.create_long_text_element(), // Precompiled long text template
+			linkWrapper: this.create_link_element(), // Precompiled link template
 		};
 	}
 
@@ -986,8 +1033,9 @@ class JssElementFactory {
 		span.className = "long-text-field-span";
 
 		const viewButton = document.createElement("span");
-		viewButton.className = "jss-grid-view-icon";
+		viewButton.className = "jss-grid-view-icon cm-clickable-content";
 		viewButton.innerHTML = `<i class="fa fa-eye"></i>`; // Font Awesome Eye Icon
+		viewButton.dataset.keyIdx = 1; // Managed so that based on this key, the appropriate function will be called.
 
 		// Append the elements to form the structure
 		wrapper.appendChild(span);
@@ -1003,7 +1051,7 @@ class JssElementFactory {
 	 * @param {number} x - Row index.
 	 * @param {number} y - Column index.
 	 */
-	cm_render_long_text_element(td, value, x, y) {
+	cm_render_long_text_element(td, value) {
 		if (!td) return;
 
 		// Clone precompiled wrapper (deep clone to ensure unique instance for each use)
@@ -1011,13 +1059,34 @@ class JssElementFactory {
 		// Set the content of the span to the provided value
 		wrapper.firstChild.textContent = value;
 
-		// Bind the data-x and data-y attributes to the view button
-		const viewButton = wrapper.lastChild;
-		viewButton.dataset.x = x;
-		viewButton.dataset.y = y;
-
 		// Efficiently replace existing content with the new wrapper
 		td.replaceChildren(wrapper);
 	}
+
 	//#endregion Long text field element
+
+	//#region Link field element
+	/**
+	 * Creates and precompiles the link element (wrapper and anchor tag)
+	 */
+	create_link_element() {
+		const wrapper = document.createElement("span");
+		wrapper.className = "link-field-span cm-clickable-content";
+		wrapper.dataset.keyIdx = 2; // Managed so that based on this key, the appropriate function will be called.
+
+		return wrapper;
+	}
+
+	/**
+	 * Renders a link element in the table cell.
+	 */
+	cm_render_link_element(td, value) {
+		if (!td) return;
+
+		// Clone precompiled wrapper
+		const wrapper = this.templates.linkWrapper.cloneNode(true);
+		wrapper.textContent = value;
+		td.replaceChildren(wrapper);
+	}
+	//#endregion Link field element
 }

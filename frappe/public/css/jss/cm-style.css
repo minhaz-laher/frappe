@@ -23,6 +23,12 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
+
+.link-field-span:hover {
+	cursor: pointer;
+	text-decoration: underline;
+}
+
 .jss-grid-view-icon {
 	margin-left: 8px;
 	flex-shrink: 0;
