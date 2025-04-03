@@ -620,6 +620,11 @@ frappe.views.BaseList = class BaseList {
 			},
 		});
 	}
+
+	/**
+	 * Crated method for debugging purpose.
+	 */
+	add_custom_log() {}
 };
 
 class FilterArea {

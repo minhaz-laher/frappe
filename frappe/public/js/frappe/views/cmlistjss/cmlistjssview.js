@@ -30,6 +30,9 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		this.onResize = this.onResize.bind(this);
 		window.addEventListener("resize", this.onResize);
 
+		this.allowToAddCustomLog = true;
+		this.disable_jss_list_update = true; // If true, the JSpreadsheet list will not update on a socket I/O call.
+
 		// Note: Commented out the above code due to issues in cleanup.
 		// // Listen for page changes and execute cleanup.
 		// this.routeChangeHandler = () => this.cleanup();
@@ -37,13 +40,12 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	}
 
 	/**
-	 * Prepare an index-function mapping for click events inside JSpreadsheet.
+	 * Crated method for debugging purpose.
 	 */
-	prepare_cm_idx_fn_mapping_det() {
-		this.cmIdxFnMappingDet = {
-			1: { handlerFn: this.handle_long_text_field_button_click.bind(this) },
-			2: { handlerFn: this.handle_link_field_click.bind(this) },
-		};
+	add_custom_log(...args) {
+		if (this.allowToAddCustomLog) {
+			console.log("CM:", ...args);
+		}
 	}
 
 	//#region Load JSpreadsheet assets and their license.
@@ -162,7 +164,6 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			// Check if a valid license key exists
 			if (response) {
 				jspreadsheet.setLicense(response);
-				console.log("JSpreadsheet license loaded successfully!");
 				this.jss_license_loaded = true;
 			} else {
 				console.error("No JSpreadsheet license found in 'jss_license' doctype.");
@@ -320,6 +321,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 */
 	prepare_data(r) {
 		let data = r.message || {};
+		this.add_custom_log("3: prepare_data fn called");
 
 		// extract user_info for assignments
 		Object.assign(frappe.boot.user_info, data.user_info);
@@ -328,14 +330,11 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		data = !Array.isArray(data) ? frappe.utils.dict(data.keys, data.values) : data;
 
 		if (this.start === 0) {
-			this.data = data.uniqBy((d) => d.name);
-			this.jss_det.data = this.prepare_jss_data(this.data);
+			this.data = this.prepare_jss_data(data.uniqBy((d) => d.name));
 		} else {
-			this.jss_det.data = this.get_jss_data()
+			this.data = this.get_jss_data()
 				.concat(this.prepare_jss_data(data))
 				.uniqBy((d) => d.name);
-
-			this.data = this.data.concat(data).uniqBy((d) => d.name);
 		}
 	}
 
@@ -346,7 +345,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * - If JSpreadsheet is already loaded and licensed, it initializes immediately.
 	 * - If not, it sets an interval to periodically check for JSpreadsheet's availability and initializes it once it is loaded.
 	 */
-	render() {
+	render_list() {
 		// Check if the spreadsheet is already initialized,  as the "render" method can be called on data updates as well.
 		if (this.jss_det.isSpreadsheetInitialized) {
 			this.handle_list_data_update();
@@ -369,6 +368,85 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	}
 
 	/**
+	 * Overrides the parent method.
+	 * Processes pending document refreshes when the user is on the list view.
+	 */
+	process_document_refreshes() {
+		this.add_custom_log("2: process_document_refreshes fn called!");
+		if (!this.pending_document_refreshes.length) return;
+
+		const route = frappe.get_route() || [];
+		if (!cur_list || route[0] != "List" || cur_list.doctype != route[1]) {
+			// wait till user is back on list view before refreshing
+			this.pending_document_refreshes = [];
+			this.disable_realtime_updates();
+			return;
+		}
+
+		const names = this.pending_document_refreshes.map((d) => d.name);
+		this.pending_document_refreshes = this.pending_document_refreshes.filter(
+			(d) => names.indexOf(d.name) === -1
+		);
+
+		if (!names.length) return;
+
+		// filters to get only the doc with this name
+		const call_args = this.get_call_args();
+		call_args.args.filters.push([this.doctype, "name", "in", names]);
+		call_args.args.start = 0;
+
+		frappe.call(call_args).then(({ message }) => {
+			if (!message) return;
+			const data = frappe.utils.dict(message.keys, message.values);
+
+			const jssData = [...this.data];
+
+			data.forEach((datum) => {
+				const index = jssData.findIndex((doc) => doc.name === datum.name);
+
+				if (index === -1) {
+					// append new data
+					jssData.push(datum);
+				} else {
+					// update this data in place
+					jssData[index] = datum;
+				}
+			});
+
+			jssData.sort((a, b) => {
+				const a_value = a[this.sort_by] || "";
+				const b_value = b[this.sort_by] || "";
+
+				let return_value = 0;
+				if (a_value > b_value) {
+					return_value = 1;
+				}
+
+				if (b_value > a_value) {
+					return_value = -1;
+				}
+
+				if (this.sort_order === "desc") {
+					return_value = -return_value;
+				}
+				return return_value;
+			});
+
+			this.data = jssData;
+
+			this.toggle_result_area();
+			this.render_list();
+		});
+	}
+
+	/**
+	 * Overrides the parent set_rows_as_checked method.
+	 */
+	set_rows_as_checked() {
+		// Note: This method is intentionally overridden as the parent implementation is not needed.
+	}
+
+	/**
 	 * Toggles the visibility of the primary action button or the actions menu(Top right corner of list page).
 	 */
 	toggle_actions_menu_button(toggle) {
@@ -388,7 +466,12 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 
 		if (only_docnames) return docnames;
 
-		return this.data.filter((d) => docnames.includes(d.name));
+		const listData = this.data.map(({ _otherDet, ...rest }) => ({
+			...rest,
+			..._otherDet,
+		}));
+
+		return listData;
 	}
 
 	/**
@@ -407,6 +490,17 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	toggle_side_bar(show) {
 		super.toggle_side_bar(show);
 		this.set_jss_viewport();
+	}
+
+	/**
+	 * Determines whether real-time updates should be avoided.
+	 */
+	avoid_realtime_update() {
+		if (this.jss_det.checked_row_det?.length > 0 || this.disable_jss_list_update) {
+			return true;
+		}
+
+		return super.avoid_realtime_update();
 	}
 	//#endregion Override parent methods to achieve desired functionality in the JSpreadsheet view.
 
@@ -626,6 +720,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 */
 	onResize = frappe.utils.debounce(() => {
 		this.set_jss_viewport();
+		super.set_result_height();
 	}, 300);
 	//#endregion Manage spreadsheet height
 
@@ -646,7 +741,74 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	}
 	//#endregion Spreadsheet helper functions
 
+	//#region Save data related functions
+	// /**
+	//  * Saves a cell value to the database if the field is valid.
+	//  *
+	//  * @param {number} x - Column index.
+	//  * @param {number} y - Row index.
+	//  * @param {string|number} value - The value to save.
+	//  * @returns {Promise<any>} Resolves with the updated document or rejects on failure.
+	//  */
+	// async save_cell_value(x, y, value) {
+	// 	try {
+	// 		const fieldname = this.jss_instance[0]?.getProperties(x, y)?.name;
+
+	// 		// Check if the field is valid for saving
+	// 		if (!this.jss_det.validListFields.has(fieldname)) return;
+
+	// 		const docname = this.get_value_from_coords(this.jss_det.columnsIdx.name, y);
+
+	// 		// Update value in the database
+	// 		const response = await frappe.db.set_value(this.doctype, docname, {
+	// 			[fieldname]: value,
+	// 		});
+
+	// 		// Return the message if successful
+	// 		if (response?.message) {
+	// 			return response.message;
+	// 		} else {
+	// 			throw new Error("Failed to update value.");
+	// 		}
+	// 	} catch (error) {
+	// 		console.error("Error saving cell value:", error);
+	// 		throw error;
+	// 	}
+	// }
+
+	/**
+	 * Saves multiple records in parallel.
+	 *
+	 * @param {Array<{x: number, y: number, value: string|number}>} records - List of records to update.
+	 * @returns {Promise<void>}
+	 */
+	async handle_save_records(records) {
+		// try {
+		// 	// Run all updates in parallel using Promise.all()
+		// 	await Promise.all(
+		// 		records.map(({ x, y, value }) => this.save_cell_value(+x, +y, value))
+		// 	);
+		// } catch (error) {
+		// 	console.error("Error saving records:", error);
+		// }
+	}
+
+	//#endregion Save data related functions
+
 	//#region Customize cell render related functions.
+	/**
+	 * Prepare an index-function mapping for click events inside JSpreadsheet.
+	 *
+	 * Note: For all custom renderers and click handlers, we will bind a single click event on JSS using event delegation.
+	 * During a click event, we avoid if-else or switch cases by mapping indexes to functions, ensuring the appropriate function is called based on the index.
+	 */
+	prepare_cm_idx_fn_mapping_det() {
+		this.cmIdxFnMappingDet = {
+			1: { handlerFn: this.handle_long_text_field_button_click.bind(this) },
+			2: { handlerFn: this.handle_link_field_click.bind(this) },
+		};
+	}
+
 	/**
 	 * Renders a long text field in the cell by delegating to `JssElementFactory`'s `cm_render_long_text_element` method.
 	 *
@@ -693,6 +855,16 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		if (+x === this.jss_det.columnsIdx._rowCheckbox) {
 			this.handle_row_checkbox_change(+y, newValue);
 		}
+	}
+
+	/**
+	 * Triggered after all data is updated.
+	 * @param {*} worksheet - Worksheet instance.
+	 * @param {*} records - Changed cell records.
+	 * @param {*} origin - Change source ('paste', 'handle-fill', or undefined).
+	 */
+	onafterchanges(worksheet, records, origin) {
+		this.handle_save_records(records);
 	}
 
 	/**
@@ -761,6 +933,16 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 */
 	get_jss_row_data(rowIdx) {
 		return this.jss_instance[0].getRowData(rowIdx);
+	}
+
+	/**
+	 * Sets data for a specific row in JSpreadsheet.
+	 * @param {number} row - Row index.
+	 * @param {Array} data - Data to set in the row.
+	 * @param {boolean} force - If true, force overrides existing data, including readonly cells.
+	 */
+	set_jss_row_data(row, data, force) {
+		return this.jss_instance[0].setRowData(row, data, force);
 	}
 
 	/**
@@ -838,24 +1020,30 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 				defaultHeader.type = "calendar";
 				defaultHeader.options = { format: "DD/MM/YYYY" };
 				break;
+
 			case "Time":
 				defaultHeader.type = "calendar";
 				break;
+
 			case "Datetime":
 				defaultHeader.type = "calendar";
 				break;
+
 			case "Percent":
 				// For Percent, we might want to handle it differently, like appending "%" symbol
 				// defaultHeader.type = "number";
 				// defaultHeader.options = { style: "percent" };
 				// Apply additional logic for formatting as a percentage
 				break;
+
 			case "Data":
 				// No change to the defaultHeader data for "Data" type
 				break;
+
 			case undefined:
 				if (col.type === "Subject") {
 					defaultHeader.render = this.cm_render_link_element.bind(this);
+					defaultHeader.readOnly = true;
 				}
 				break;
 
@@ -965,9 +1153,10 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			onchange: (...args) => this.onchange(...args),
 			oncreatecolumn: (...args) => this.oncreatecolumn(...args),
 			onbeforesort: (...args) => this.onbeforesort(...args),
+			onafterchanges: (...args) => this.onafterchanges(...args),
 			worksheets: [
 				{
-					data: this.jss_det.data,
+					data: this.data,
 					columns: this.jss_det.columns,
 					tableOverflow: true,
 					resize: "both",
@@ -975,12 +1164,14 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 					tableWidth: this.jss_det.tableWidth,
 					tableHeight: this.jss_det.tableHeight,
 					columnSorting: false,
+					allowManualInsertRow: false,
+					allowManualInsertColumn: false,
 				},
 			],
 		});
 		this.jss_det.isSpreadsheetInitialized = true;
 
-		console.log("Spreadsheet initialized!");
+		this.add_custom_log("3: Spreadsheet initialized!");
 	}
 
 	/**
@@ -994,7 +1185,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		const currentVisibleCol = jss.visibleCols?.[0] ?? 0;
 
 		// Update JSpreadsheet data and reapply row selection
-		this.update_jss_data(this.jss_det.data, true);
+		this.update_jss_data(this.data, true);
 		this.handle_row_selection_after_data_update();
 
 		// Restore previous scroll position
@@ -1005,7 +1196,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	//#region Cleanup functions
 	// Cleanup function code is on hold due to technical issues.
 	cleanup() {
-		console.log("Cleaning up event listeners...");
+		console.log("CM: Cleaning up event listeners...");
 		window.removeEventListener("resize", this.onResize);
 		frappe.router.off("change", this.routeChangeHandler);
 	}
