@@ -31,7 +31,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		window.addEventListener("resize", this.onResize);
 
 		this.allowToAddCustomLog = true;
-		this.disable_jss_list_update = true; // If true, the JSpreadsheet list will not update on a socket I/O call.
+		this.disable_jss_list_update = true; // If true, the JSpreadsheet list will not update on a socket I/O call. Think of a scenario where we are updating data, and the list gets refreshed.
 
 		// Note: Commented out the above code due to issues in cleanup.
 		// // Listen for page changes and execute cleanup.
@@ -39,6 +39,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		// frappe.router.on("change", this.routeChangeHandler);
 	}
 
+	//#region Common utils
 	/**
 	 * Crated method for debugging purpose.
 	 */
@@ -47,6 +48,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			console.log("CM:", ...args);
 		}
 	}
+	//#endregion Common utils
 
 	//#region Load JSpreadsheet assets and their license.
 	/**
@@ -59,10 +61,6 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			const jsFiles = await this.loadFilesFromDirectory("/assets/frappe/js/jss/", "js");
 			await Promise.all(jsFiles.map((file) => this.loadJs(file)));
 
-			// Load CSS files required for styling JSpreadsheet.
-			const cssFiles = await this.loadFilesFromDirectory("/assets/frappe/css/jss/", "css");
-			await Promise.all(cssFiles.map((file) => this.loadCss(file)));
-
 			// Ensure JSpreadsheet is loaded before proceeding.
 			if (typeof jspreadsheet === "undefined") {
 				console.error("JSpreadsheet is not loaded yet!");
@@ -74,29 +72,6 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		} catch (error) {
 			console.error("Error loading JSpreadsheet assets:", error);
 		}
-	}
-
-	/**
-	 * Dynamically loads a CSS file and appends it to the document head.
-	 *
-	 * @param {string} href - The URL of the CSS file.
-	 * @returns {Promise} Resolves when the CSS file is loaded.
-	 */
-	loadCss(href) {
-		return new Promise((resolve, reject) => {
-			// Check if the CSS file is already loaded.
-			if (document.querySelector(`link[href="${href}"]`)) {
-				resolve(); // Already loaded
-				return;
-			}
-
-			const link = document.createElement("link");
-			link.rel = "stylesheet";
-			link.href = href;
-			link.onload = resolve;
-			link.onerror = () => reject(new Error(`Failed to load CSS: ${href}`));
-			document.head.appendChild(link);
-		});
 	}
 
 	/**
@@ -134,12 +109,6 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			// Predefined list of required JS and CSS files for JSpreadsheet.
 			const files = {
 				js: ["jspreadsheet.js", "jsuites.js", "render.js", "parser.js", "formula-pro.js"],
-				css: [
-					"jspreadsheet.css",
-					"jsuites.css",
-					"jspreadsheet.themes.css",
-					"cm-style.css",
-				],
 			};
 
 			// Return the list of files with the full path.
@@ -493,6 +462,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	}
 
 	/**
+	 * Overrides the parent method.
 	 * Determines whether real-time updates should be avoided.
 	 */
 	avoid_realtime_update() {
@@ -501,6 +471,21 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		}
 
 		return super.avoid_realtime_update();
+	}
+
+	/**
+	 * Overrides the parent method.
+	 * Manage freeze
+	 * @param {*} value
+	 */
+	freeze(value) {
+		this.add_custom_log("freeze value", value);
+		if (value) {
+			// Improvement: We will not freeze entire dom. Just render loading text may in page header.Improvement: Instead of freezing the entire DOM, display a loading text, possibly in the page header.
+			frappe.dom.freeze("Loading...");
+		} else {
+			frappe.dom.unfreeze();
+		}
 	}
 	//#endregion Override parent methods to achieve desired functionality in the JSpreadsheet view.
 
@@ -742,57 +727,114 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	//#endregion Spreadsheet helper functions
 
 	//#region Save data related functions
-	// /**
-	//  * Saves a cell value to the database if the field is valid.
-	//  *
-	//  * @param {number} x - Column index.
-	//  * @param {number} y - Row index.
-	//  * @param {string|number} value - The value to save.
-	//  * @returns {Promise<any>} Resolves with the updated document or rejects on failure.
-	//  */
-	// async save_cell_value(x, y, value) {
-	// 	try {
-	// 		const fieldname = this.jss_instance[0]?.getProperties(x, y)?.name;
-
-	// 		// Check if the field is valid for saving
-	// 		if (!this.jss_det.validListFields.has(fieldname)) return;
-
-	// 		const docname = this.get_value_from_coords(this.jss_det.columnsIdx.name, y);
-
-	// 		// Update value in the database
-	// 		const response = await frappe.db.set_value(this.doctype, docname, {
-	// 			[fieldname]: value,
-	// 		});
-
-	// 		// Return the message if successful
-	// 		if (response?.message) {
-	// 			return response.message;
-	// 		} else {
-	// 			throw new Error("Failed to update value.");
-	// 		}
-	// 	} catch (error) {
-	// 		console.error("Error saving cell value:", error);
-	// 		throw error;
-	// 	}
-	// }
-
 	/**
-	 * Saves multiple records in parallel.
+	 * Handles saving multiple records asynchronously in the background.
+	 * It first prepares the data payload and then sends it to the API.
 	 *
 	 * @param {Array<{x: number, y: number, value: string|number}>} records - List of records to update.
 	 * @returns {Promise<void>}
 	 */
-	async handle_save_records(records) {
-		// try {
-		// 	// Run all updates in parallel using Promise.all()
-		// 	await Promise.all(
-		// 		records.map(({ x, y, value }) => this.save_cell_value(+x, +y, value))
-		// 	);
-		// } catch (error) {
-		// 	console.error("Error saving records:", error);
-		// }
+	handle_save_records(records) {
+		try {
+			if (!Array.isArray(records) || records.length === 0) {
+				return;
+			}
+
+			const args = this.prepare_api_payload_to_save_data(records);
+			if (args.records.length > 0) {
+				this.save_records(args);
+			}
+		} catch (error) {
+			console.error("Error in handle_save_records:", error);
+		}
 	}
 
+	/**
+	 * Prepares the API payload by grouping updates by document name.
+	 *
+	 * @param {Array<{x: number, y: number, value: string|number}>} data - Raw records to be processed.
+	 * @returns {Object} API payload formatted with doctype and records.
+	 */
+	prepare_api_payload_to_save_data(data) {
+		let recordsMap = new Map(); // Using a Map to ensure unique records
+
+		data.forEach(({ x, y, value }) => {
+			const fieldname = this.jss_instance?.[0]?.getProperties(+x, +y)?.name;
+			const docname = this.get_value_from_coords(this.jss_det.columnsIdx.name, y);
+
+			// Skip processing if fieldname, docname are missing or field is invalid
+			if (
+				!fieldname ||
+				!docname ||
+				fieldname === "name" ||
+				!this.jss_det.validListFields.has(fieldname)
+			) {
+				return;
+			}
+
+			// Retrieve or initialize record entry
+			const record = recordsMap.get(docname) || { name: docname, updatedField: [] };
+
+			// Append the field update
+			record.updatedField.push({ [fieldname]: value });
+
+			// Store the record back in the map (only if newly created)
+			if (!recordsMap.has(docname)) {
+				recordsMap.set(docname, record);
+			}
+		});
+
+		return {
+			doctype: this.doctype,
+			records: Array.from(recordsMap.values()),
+		};
+	}
+
+	/**
+	 * Sends the API request to update records and handles the response.
+	 *
+	 * @param {Object} args - Payload containing doctype and records to update.
+	 */
+	save_records(args) {
+		frappe.call({
+			method: "frappe.desk.custom_listview.update_records",
+			args: args,
+			callback: (response) => {
+				if (!response || !response.message) {
+					console.error("Unexpected API response:", response);
+					frappe.msgprint({
+						title: __("Error"),
+						message: __("Unexpected error occurred while updating records."),
+						indicator: "red",
+					});
+					return;
+				}
+
+				const { status, updated_records, errors } = response.message;
+
+				if (status === "success") {
+					this.add_custom_log("Records Updated Successfully:", updated_records);
+				} else {
+					console.error("Error Updating Records:", errors);
+					frappe.msgprint({
+						title: __("Update Error"),
+						message: __(
+							"Some records could not be updated. Check console for details."
+						),
+						indicator: "red",
+					});
+				}
+			},
+			error: (err) => {
+				console.error("API Call Failed:", err);
+				frappe.msgprint({
+					title: __("API Failure"),
+					message: __("Failed to update records due to an API error."),
+					indicator: "red",
+				});
+			},
+		});
+	}
 	//#endregion Save data related functions
 
 	//#region Customize cell render related functions.
@@ -1147,6 +1189,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			// Using an arrow function in multiple functions below to preserve the 'this' context from CmlistjssView.
 			// This prevents 'this' keyword from referring to JSpreadsheet inside those functions, ensuring access to class methods.
 			autoCasting: false,
+			loadingSpin: true,
 			contextMenu: function () {
 				return false;
 			},
@@ -1170,6 +1213,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			],
 		});
 		this.jss_det.isSpreadsheetInitialized = true;
+		this.freeze(false);
 
 		this.add_custom_log("3: Spreadsheet initialized!");
 	}
@@ -1190,6 +1234,8 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 
 		// Restore previous scroll position
 		jss.goto(currentVisibleRow, currentVisibleCol);
+
+		this.freeze(false);
 	}
 	//#endregion Init JSpreadsheet related functions.
 
