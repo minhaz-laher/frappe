@@ -48,12 +48,24 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			console.log("CM:", ...args);
 		}
 	}
+
 	//#endregion Common utils
+
+	//#region Common Jspreadsheet utils
+	/**
+	 * Get the column name (e.g., A, B, C...) based on its index.
+	 *
+	 * @param {*} index - The zero-based index of the column.
+	 * @returns {string} - The corresponding Excel-style column name.
+	 */
+	get_column_name_by_index(index) {
+		return jspreadsheet.helpers.getColumnName(index);
+	}
+	//#endregion Common Jspreadsheet utils
 
 	//#region Load JSpreadsheet assets and their license.
 	/**
-	 * Asynchronously loads the required JSpreadsheet assets (JS and CSS files).
-	 * Note: We can load css throgh "hooks.py" also.
+	 * Asynchronously loads the required JSpreadsheet assets (JS files).
 	 */
 	async loadAssets() {
 		try {
@@ -172,7 +184,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * Overrides the parent method to setup events.
 	 */
 	setup_events() {
-		this.setup_body_sideber_change_event();
+		this.setup_body_sidebar_change_event();
 		this.jss_handle_clickable_content();
 	}
 
@@ -494,7 +506,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * Attaches a delegated event listener to the sidebar collapse link.
 	 * When clicked, it updates the viewport to adjust for sidebar changes.
 	 */
-	setup_body_sideber_change_event() {
+	setup_body_sidebar_change_event() {
 		$(".body-sidebar").on("click", ".collapse-sidebar-link", this.set_jss_viewport.bind(this));
 	}
 
@@ -533,6 +545,75 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	}
 
 	//#endregion Setup Events
+
+	//#region Manage validations
+	/**
+	 * Add numeric validations (e.g., non-negative) for a specific column.
+	 * @param {*} colDf - Column definition object from Frappe.
+	 * @param {*} colIdx - Column index in the spreadsheet.
+	 */
+	manageNumericValidations(colDf, colIdx) {
+		if (colDf.non_negative) {
+			const colLatter = this.get_column_name_by_index(colIdx);
+			this.jss_det.validations.push({
+				range: `Sheet1!${colLatter}:${colLatter}`, // IN: Make sure to use the default sheet name consistently throughout the entire flow. Otherwise, maintain a proper flow to manage the sheet name.
+				action: "warning", // Note: We can use here 'warning' | 'reject' | 'format'.
+				criteria: ">=",
+				type: "number",
+				value: [0],
+			});
+		}
+	}
+
+	/**
+	 * Adds a text validation rule for the specified column.
+	 *
+	 * @param {*} colDf - Column definition object from Frappe.
+	 * @param {*} colIdx - Column index in the spreadsheet.
+	 */
+	manageTextValidations(colDf, colIdx) {
+		// IN: We can either implement a single reusable validation per data type
+		// or support multiple validation rules for the same data type as needed.
+		// Reference: https://jspreadsheet.com/docs/validations for more details.
+		if (colDf.length) {
+			const colLatter = this.get_column_name_by_index(colIdx);
+			this.jss_det.validations.push({
+				range: `Sheet1!${colLatter}:${colLatter}`, // IN: Make sure to use the default sheet name consistently throughout the entire flow. Otherwise, maintain a proper flow to manage the sheet name.
+				action: "warning",
+				criteria: "<=",
+				type: "textLength",
+				value: [colDf.length],
+			});
+			// Note: we can add more validation here based on data type.
+		}
+	}
+
+	/**
+	 * Prepares and applies validation rules for JSpreadsheet columns
+	 * based on their defined field types and metadata.
+	 */
+	prepare_jss_validations() {
+		// IN: We need to plan the validation flow and determine how many types of validations we want to support.
+		this.jss_det.validations = [];
+		for (let i = 0, len = this.jss_det.columns.length; i < len; i++) {
+			const col = this.jss_det.columns[i];
+			if (col.cmMeta) {
+				switch (col.cmMeta.df.fieldtype) {
+					case "Data":
+						this.manageTextValidations(col.cmMeta.df, i);
+						break;
+					case "Int":
+					case "Float":
+						this.manageNumericValidations(col.cmMeta.df, i);
+						break;
+					// NOTE: we can add other validations here.
+					default:
+						break;
+				}
+			}
+		}
+	}
+	//#endregion Manage validations
 
 	//#region Row checkboxes and the action menu functions.
 	/**
@@ -713,7 +794,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	/**
 	 * Destroy the existing sheet.
 	 */
-	destroty_sheet() {
+	destroy_sheet() {
 		jspreadsheet.destroy(this.jss_instance[0].parent.el, true);
 	}
 
@@ -759,16 +840,25 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		let recordsMap = new Map(); // Using a Map to ensure unique records
 
 		data.forEach(({ x, y, value }) => {
-			const fieldname = this.jss_instance?.[0]?.getProperties(+x, +y)?.name;
-			const docname = this.get_value_from_coords(this.jss_det.columnsIdx.name, y);
+			const cellProperty = this.jss_instance?.[0]?.getProperties(+x) || {};
+			const docname = this.get_value_from_coords(this.jss_det.columnsIdx.name, +y);
 
 			// Skip processing if fieldname, docname are missing or field is invalid
 			if (
-				!fieldname ||
+				!cellProperty.name ||
 				!docname ||
-				fieldname === "name" ||
-				!this.jss_det.validListFields.has(fieldname)
+				cellProperty.name === "name" ||
+				!this.jss_det.validListFields.has(cellProperty.name)
 			) {
+				return;
+			}
+
+			if (this.jss_instance[0].hasErrors(x, y)) {
+				console.warn(
+					`CM: Invalid data detected in column "${cellProperty.title}", row ${
+						+y + 1
+					}. This data will not be saved to the database.`
+				);
 				return;
 			}
 
@@ -776,7 +866,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			const record = recordsMap.get(docname) || { name: docname, updatedField: [] };
 
 			// Append the field update
-			record.updatedField.push({ [fieldname]: value });
+			record.updatedField.push({ [cellProperty.name]: value });
 
 			// Store the record back in the map (only if newly created)
 			if (!recordsMap.has(docname)) {
@@ -1033,7 +1123,8 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			title: col.df.label,
 			type: "text", // Default type as text, can be overridden
 			width: +col.df.width || 230, // Default width
-			wrap: true, // Enable wrapping by default
+			wrap: true, // Enable wrapping by default,
+			cmMeta: col,
 		};
 
 		// Adjust properties based on field type
@@ -1047,7 +1138,8 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			case "Float":
 				defaultHeader.type = "number"; // Use number type for Int and Float
 				defaultHeader.width = +col.df.width || 100;
-				// Pending:: Apply mask based on database
+				defaultHeader.align = "right";
+				// IN:: Pending:: Apply mask based on database
 				break;
 
 			case "Currency":
@@ -1123,6 +1215,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		// Combine hidden and visible columns
 		this.jss_det.columns = [...hiddenColumns, ...visibleColumns];
 		this.store_header_idx();
+		this.prepare_jss_validations();
 	}
 
 	/**
@@ -1156,6 +1249,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			tableHeight: 500, // Default spreadsheet height
 			checked_row_det: [], // Stores details of checked rows
 			isSpreadsheetInitialized: undefined, // Store boolean value for the spreadsheet is initialized or not.
+			validations: [], // Store JSpreadsheet validations. We will maintain validations column-wise.
 		};
 	}
 
@@ -1164,7 +1258,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * This function sequentially executes required setup steps using `frappe.run_serially()`.
 	 */
 	init_spreadsheet() {
-		// NOTE: We can add here more function which is related to jspreadsheet intialized./ NOTE: Additional functions related to JSpreadsheet initialization can be added here.
+		// NOTE: We can add here more function which is related to jspreadsheet initialized./ NOTE: Additional functions related to JSpreadsheet initialization can be added here.
 		this.render_spreadsheet();
 	}
 
@@ -1190,6 +1284,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			// This prevents 'this' keyword from referring to JSpreadsheet inside those functions, ensuring access to class methods.
 			autoCasting: false,
 			loadingSpin: true,
+			validations: this.jss_det.validations,
 			contextMenu: function () {
 				return false;
 			},
