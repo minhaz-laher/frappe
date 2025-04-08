@@ -274,14 +274,6 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	}
 
 	/**
-	 * Overridden method to disable the count rendering.
-	 * The parent implementation is not needed for this view.
-	 */
-	render_count() {
-		// Note: This method is intentionally overridden as the parent implementation is not needed.
-	}
-
-	/**
 	 * Overridden method to disable the checkbox update.
 	 * The parent implementation is not needed for this view.
 	 */
@@ -492,12 +484,24 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 */
 	freeze(value) {
 		this.add_custom_log("freeze value", value);
-		if (value) {
-			// Improvement: We will not freeze entire dom. Just render loading text may in page header.Improvement: Instead of freezing the entire DOM, display a loading text, possibly in the page header.
-			frappe.dom.freeze("Loading...");
-		} else {
-			frappe.dom.unfreeze();
+		super.freeze();
+		// Note: If we need to add a custom loader, we will uncomment the code below.
+		// if (value) {
+		// 	// Improvement: We will not freeze entire dom. Just render loading text may in page header.Improvement: Instead of freezing the entire DOM, display a loading text, possibly in the page header.
+		// 	frappe.dom.freeze("Loading...");
+		// } else {
+		// 	frappe.dom.unfreeze();
+		// }
+	}
+
+	get_count_element() {
+		let $count = this.$paging_area.find(".list-count");
+		if (!$count.length) {
+			$count = $("<span>")
+				.addClass("text-muted list-count")
+				.prependTo(this.$paging_area.find(".level-right"));
 		}
+		return $count;
 	}
 	//#endregion Override parent methods to achieve desired functionality in the JSpreadsheet view.
 
