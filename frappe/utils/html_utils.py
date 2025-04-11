@@ -437,6 +437,7 @@ acceptable_attributes = [
 	"contenteditable",
 	"controls",
 	"coords",
+	"customautocomplete",
 	"data",
 	"datafld",
 	"datapagesize",

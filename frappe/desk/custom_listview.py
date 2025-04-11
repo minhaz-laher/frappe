@@ -76,3 +76,18 @@ def update_records():
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "API Error: update_records")
         return {"status": "error", "message": str(e)}
+
+@frappe.whitelist()
+def get_dummy_autocomplete(txt=None, **kwargs):
+    if not txt:
+        return []
+
+    # Simulated search result suggestions
+    dummy_suggestions = [
+        {"label": f"{txt} beans", "value": f"{txt} beans"},
+        {"label": f"{txt} shop near me", "value": f"{txt} shop near me"},
+        {"label": f"{txt} price", "value": f"{txt} price"},
+        {"label": f"{txt} vs tea", "value": f"{txt} vs tea"},
+    ]
+
+    return dummy_suggestions
