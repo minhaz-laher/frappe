@@ -41,3 +41,6 @@ import "./frappe/views/image/photoswipe_dom.html";
 import "./frappe/views/kanban/kanban_board.html";
 import "./frappe/views/kanban/kanban_column.html";
 import "./frappe/views/kanban/kanban_card.html";
+
+import "./frappe/custom_page/cm_factory.js";
+import "./frappe/custom_page/bom_view.js";
