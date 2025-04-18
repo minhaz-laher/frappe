@@ -23,8 +23,6 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		// Load required assets for JSpreadsheet.
 		this.loadAssets();
 
-		// Prepare an index-function mapping for click events inside JSpreadsheet.
-		this.prepare_cm_idx_fn_mapping_det();
 		this._jss_element_factory = new JssElementFactory();
 
 		// Bind the `this` context to onResize and add the event listener.
@@ -158,6 +156,15 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	//#endregion Load JSpreadsheet assets and their license.
 
 	//#region Override parent methods to achieve desired functionality in the JSpreadsheet view.
+	async show() {
+		this.parent.list_view = this;
+		this.cm_control_list = await frappe.views.make_control_list(this); // For customize list view based on doc type.
+
+		// Prepare an index-function mapping for click events inside JSpreadsheet.
+		this.prepare_cm_idx_fn_mapping_det();
+		super.show(true);
+	}
+
 	/**
 	 * Overrides the parent method
 	 * @returns
@@ -542,10 +549,10 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 */
 	jss_handle_clickable_content() {
 		this.$jss_parent_container.on("click", ".cm-clickable-content", (e) => {
-			const keyIdx = e.currentTarget.dataset.keyIdx;
+			const keyname = e.currentTarget.dataset.keyname;
 			const { x, y } = e.target.closest("td")?.dataset;
 
-			this.cmIdxFnMappingDet[+keyIdx]?.handlerFn(e, +x, +y);
+			this.cmIdxFnMappingDet[keyname]?.handlerFn(e, +x, +y);
 		});
 	}
 
@@ -941,9 +948,11 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 */
 	prepare_cm_idx_fn_mapping_det() {
 		this.cmIdxFnMappingDet = {
-			1: { handlerFn: this.handle_long_text_field_button_click.bind(this) },
-			2: { handlerFn: this.handle_link_field_click.bind(this) },
+			long_text: { handlerFn: this.handle_long_text_field_button_click.bind(this) },
+			name_link: { handlerFn: this.handle_link_field_click.bind(this) },
 		};
+
+		this.cm_control_list?.prepare_cm_idx_fn_mapping_det(this.cmIdxFnMappingDet);
 	}
 
 	/**
@@ -1039,15 +1048,14 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * It separates valid fields from additional fields into an `otherDet` object.
 	 */
 	prepare_jss_data(data = []) {
+		const validFields = this.jss_det.validListFields;
 		// Map the input data, separating known fields from additional fields.
 		return data.map((row) => {
 			const formattedRow = { _otherDet: {}, _rowCheckbox: false }; // Object to store valid fields and other details.
 
 			// Iterate through each key in the row and categorize it.
 			for (const key in row) {
-				(this.jss_det.validListFields.has(key) ? formattedRow : formattedRow._otherDet)[
-					key
-				] = row[key];
+				(validFields.has(key) ? formattedRow : formattedRow._otherDet)[key] = row[key];
 			}
 
 			return formattedRow;
@@ -1189,6 +1197,10 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			default:
 				// No changes for unsupported types
 				break;
+		}
+
+		if (this.cm_control_list?.generate_field_header_by_field_type) {
+			this.cm_control_list?.generate_field_header_by_field_type(defaultHeader);
 		}
 
 		// Return the final header configuration

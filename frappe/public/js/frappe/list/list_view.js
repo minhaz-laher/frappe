@@ -39,8 +39,12 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 		return frappe.perm.has_perm(this.doctype, 0, "read");
 	}
 
-	show() {
+	async show(isCmControlListLoaded) {
 		this.parent.disable_scroll_to_top = true;
+		if (!isCmControlListLoaded) {
+			this.parent.list_view = this;
+			this.cm_control_list = await frappe.views.make_control_list(this); // For customize list view based on doc type.
+		}
 		super.show();
 	}
 
@@ -147,7 +151,6 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 	}
 
 	setup_page() {
-		this.parent.list_view = this;
 		super.setup_page();
 	}
 
@@ -2183,6 +2186,8 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 		if (frappe.model.can_delete(doctype) && !frappe.model.has_workflow(doctype)) {
 			actions_menu_items.push(bulk_delete());
 		}
+
+		this.cm_control_list?.get_actions_menu_items(actions_menu_items);
 
 		return actions_menu_items;
 	}

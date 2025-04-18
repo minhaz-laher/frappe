@@ -21,7 +21,7 @@ export class JssElementFactory {
     const viewButton = document.createElement("span");
     viewButton.className = "jss-grid-view-icon cm-clickable-content";
     viewButton.innerHTML = `<i class="fa fa-eye"></i>`; // Font Awesome Eye Icon
-    viewButton.dataset.keyIdx = 1; // Managed so that based on this key, the appropriate function will be called.
+    viewButton.dataset.keyname = "long_text"; // Managed so that based on this key, the appropriate function will be called.
 
     // Append the elements to form the structure
     wrapper.appendChild(span);
@@ -58,7 +58,7 @@ export class JssElementFactory {
   create_link_element() {
     const wrapper = document.createElement("span");
     wrapper.className = "link-field-span cm-clickable-content";
-    wrapper.dataset.keyIdx = 2; // Managed so that based on this key, the appropriate function will be called.
+    wrapper.dataset.keyname = "name_link"; // Managed so that based on this key, the appropriate function will be called.
 
     return wrapper;
   }
