@@ -134,6 +134,7 @@ frappe.ui.Page = class Page {
 		this.footer = this.wrapper.find(".layout-footer");
 		this.indicator = this.wrapper.find(".indicator-pill");
 
+		this.cm_header_section = this.wrapper.find(".cm-header-section");
 		this.page_actions = this.wrapper.find(".page-actions");
 		this.filters = this.wrapper.find(".filters");
 

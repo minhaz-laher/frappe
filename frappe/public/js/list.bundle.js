@@ -31,7 +31,8 @@ import "./frappe/views/kanban/kanban_view.js";
 import "./frappe/views/inbox/inbox_view.js";
 import "./frappe/views/file/file_view.js";
 import "./frappe/views/cmlistjss/cmlistjssview.js";
-import "./frappe/q2c_pages/control_list.js";
+import "./frappe/q2c_pages/list_pages/control_list.js";
+import "./frappe/q2c_pages/form_pages/control_form.js";
 
 import "./frappe/views/treeview.js";
 import "./frappe/views/interaction.js";
