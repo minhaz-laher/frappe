@@ -158,7 +158,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	//#region Override parent methods to achieve desired functionality in the JSpreadsheet view.
 	async show() {
 		this.parent.list_view = this;
-		this.cm_control_list = await frappe.views.make_control_list(this); // For customize list view based on doc type.
+		this.cm_control_list = await frappe.views.make_control_list?.(this); // For customize list view based on doc type.
 
 		// Prepare an index-function mapping for click events inside JSpreadsheet.
 		this.prepare_cm_idx_fn_mapping_det();
@@ -952,7 +952,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			name_link: { handlerFn: this.handle_link_field_click.bind(this) },
 		};
 
-		this.cm_control_list?.prepare_cm_idx_fn_mapping_det(this.cmIdxFnMappingDet);
+		this.cm_control_list?.prepare_cm_idx_fn_mapping_det?.(this.cmIdxFnMappingDet);
 	}
 
 	/**
@@ -1200,7 +1200,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		}
 
 		if (this.cm_control_list?.generate_field_header_by_field_type) {
-			this.cm_control_list?.generate_field_header_by_field_type(defaultHeader);
+			this.cm_control_list?.generate_field_header_by_field_type?.(defaultHeader);
 		}
 
 		// Return the final header configuration

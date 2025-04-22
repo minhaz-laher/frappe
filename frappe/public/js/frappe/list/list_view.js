@@ -2187,7 +2187,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 			actions_menu_items.push(bulk_delete());
 		}
 
-		this.cm_control_list?.get_actions_menu_items(actions_menu_items);
+		this.cm_control_list?.get_actions_menu_items?.(actions_menu_items);
 
 		return actions_menu_items;
 	}

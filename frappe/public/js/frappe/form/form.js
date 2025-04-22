@@ -605,6 +605,7 @@ frappe.ui.form.Form = class FrappeForm {
 		if (!this.meta.istable) {
 			this.layout.doc = this.doc;
 			this.layout.attach_doc_and_docfields();
+			this.cm_control_form?.render_form?.();
 
 			if (frappe.boot.desk_settings.form_sidebar) {
 				this.sidebar = new frappe.ui.form.Sidebar({
@@ -742,7 +743,7 @@ frappe.ui.form.Form = class FrappeForm {
 				this.toolbar.current_status = undefined;
 			}
 			this.toolbar.refresh();
-			this.cm_control_form?.refresh_header();
+			this.cm_control_form?.refresh_header?.();
 		}
 		this.viewers.refresh();
 

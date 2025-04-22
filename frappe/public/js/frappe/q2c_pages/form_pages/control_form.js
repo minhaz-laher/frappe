@@ -1,5 +1,6 @@
 const controlClassMap = {
 	"CM Component": () => import("./cm_component_form"), 
+	"cm-test-new": () => import("./cm-test-new_form"), 
 };
 
 frappe.views.make_control_form = async function (opts) {
