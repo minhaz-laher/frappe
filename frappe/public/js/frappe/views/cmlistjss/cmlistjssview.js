@@ -10,47 +10,6 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		return "Cmlistjss";
 	}
 
-	// We will improve variable declarations.
-	// Cache for column configurations to avoid redundant processing
-	var columnConfigCache = new Map();
-
-	// Default column configurations for different field types
-	var DEFAULT_COLUMN_CONFIGS = {
-		'Data': {
-			type: 'text',
-			width: 230,
-			wrap: true
-		},
-		'Long Text': {
-			type: 'text',
-			width: 350,
-			wrap: true,
-			render: 'cm_render_long_text_element'
-		},
-		'Int': {
-			type: 'number',
-			width: 100,
-			align: 'right',
-			validation: 'numeric'
-		},
-		'Float': {
-			type: 'number',
-			width: 100,
-			align: 'right',
-			validation: 'numeric'
-		},
-		'Date': {
-			type: 'calendar',
-			width: 120,
-			options: { format: 'DD/MM/YYYY' }
-		},
-		'Link': {
-			type: 'text',
-			width: 200,
-			render: 'cm_render_link_element'
-		}
-	};
-
 	/**
 	 * Constructor function to initialize the view.
 	 * - Loads required assets.
@@ -213,6 +172,44 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	setup_defaults() {
 		this.view = "Cmlistjss"; // We can change view name here.
 		this.jss_det = this.initialize_jSS_details(); // Initialize JSpreadsheet-related data
+		this.common_det = {
+			DEFAULT_COLUMN_CONFIGS: {
+				// Default column configurations for different field types
+				Data: {
+					type: "text",
+					width: 230,
+					wrap: true,
+				},
+				"Long Text": {
+					type: "text",
+					width: 350,
+					wrap: true,
+					render: "cm_render_long_text_element",
+				},
+				Int: {
+					type: "number",
+					width: 100,
+					align: "right",
+					validation: "numeric",
+				},
+				Float: {
+					type: "number",
+					width: 100,
+					align: "right",
+					validation: "numeric",
+				},
+				Date: {
+					type: "calendar",
+					width: 120,
+					options: { format: "DD/MM/YYYY" },
+				},
+				Link: {
+					type: "text",
+					width: 200,
+					render: "cm_render_link_element",
+				},
+			},
+		};
 		return super.setup_defaults().then((r) => {
 			return r; // IN:: We can improve this syntax. The currently added syntax is just for testing purposes."
 		});
@@ -485,22 +482,22 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 */
 	get_checked_items(only_docnames) {
 		const checkedDocnames = this.jss_det.checked_row_det;
-	
+
 		// Return early if only docnames are requested
 		if (only_docnames) return checkedDocnames;
-	
+
 		const checkedSet = new Set(checkedDocnames);
 		const selectedItems = [];
-	
+
 		for (let i = 0; i < this.data.length; i++) {
 			const row = this.data[i].data || this.data[i];
 			const combinedItem = Object.assign({}, row, row._otherDet);
-	
+
 			if (checkedSet.has(combinedItem.name)) {
 				selectedItems.push(combinedItem);
 			}
 		}
-	
+
 		return selectedItems;
 	}
 
@@ -657,9 +654,9 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		if (!this.jss_det.columnValidations) {
 			this.jss_det.columnValidations = new Map();
 		}
-		
+
 		this.jss_det.validations = [];
-		
+
 		// Process validations from columnValidations map
 		this.jss_det.columnValidations.forEach((validations, columnName) => {
 			const colIndex = this.jss_det.columnsIdx[columnName];
@@ -667,18 +664,18 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 				console.warn(`Column ${columnName} not found in columnsIdx map`);
 				return;
 			}
-			
+
 			try {
 				const colLetter = this.get_column_name_by_index(colIndex);
-				validations.forEach(validation => {
+				validations.forEach((validation) => {
 					if (!validation.type) {
 						console.warn(`Validation missing type for column ${columnName}`);
 						return;
 					}
-					
+
 					this.jss_det.validations.push({
 						range: `Sheet1!${colLetter}:${colLetter}`,
-						...validation
+						...validation,
 					});
 				});
 			} catch (error) {
@@ -928,7 +925,8 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 
 			if (this.jss_instance[0].hasErrors(x, y)) {
 				console.warn(
-					`CM: Invalid data detected in column "${cellProperty.title}", row ${+y + 1
+					`CM: Invalid data detected in column "${cellProperty.title}", row ${
+						+y + 1
 					}. This data will not be saved to the database.`
 				);
 				return;
@@ -1191,21 +1189,21 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 */
 	prepare_jss_source_header() {
 		if (!this.columns) return;
-		
+
 		// Initialize data structures
 		this.jss_det.validListFields = new Set();
 		this.jss_det.columns = [];
 		this.jss_det.columnValidations = new Map();
-		
+
 		// Process hidden columns
 		const hiddenColumns = this.getHiddenColumns();
-		
+
 		// Process visible columns with caching
 		const visibleColumns = this.processVisibleColumns();
-		
+
 		// Combine and store columns
 		this.jss_det.columns = [...hiddenColumns, ...visibleColumns];
-		
+
 		// Store indices and prepare validations
 		this.store_header_idx();
 		this.prepare_jss_validations();
@@ -1216,17 +1214,17 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 */
 	getHiddenColumns() {
 		return [
-			{ 
-				name: "_otherDet", 
+			{
+				name: "_otherDet",
 				type: "hidden",
-				width: 0
+				width: 0,
 			},
-			{ 
-				name: "_rowCheckbox", 
-				type: "checkbox", 
+			{
+				name: "_rowCheckbox",
+				type: "checkbox",
 				width: 38,
-				align: "center"
-			}
+				align: "center",
+			},
 		];
 	}
 
@@ -1235,19 +1233,13 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 */
 	processVisibleColumns() {
 		return this.columns
-			.filter(col => col.type === "Field" || col.type === "Subject")
-			.map(col => {
-				const cacheKey = `${col.df.fieldname}_${col.df.fieldtype}`;
-				
-				// Check cache first
-				if (columnConfigCache.has(cacheKey)) {
-					return columnConfigCache.get(cacheKey);
-				}
-				
+			.filter((col) => col.type === "Field" || col.type === "Subject")
+			.map((col) => {
+				this.jss_det.validListFields.add(col.df.fieldname);
+
 				// Generate and cache new configuration
 				const config = this.generateColumnConfig(col);
-				columnConfigCache.set(cacheKey, config);
-				
+
 				return config;
 			});
 	}
@@ -1260,17 +1252,17 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 			name: col.df.fieldname,
 			title: col.df.label,
 			cmMeta: col,
-			...this.getDefaultConfigForType(col.df.fieldtype)
+			...this.getDefaultConfigForType(col.df.fieldtype),
 		};
-		
+
 		// Apply custom configurations if provided
 		if (this.cm_control_list?.generate_field_header_by_field_type) {
 			this.cm_control_list.generate_field_header_by_field_type(defaultConfig);
 		}
-		
+
 		// Add custom validations if needed
 		this.addColumnValidations(defaultConfig, col);
-		
+
 		return defaultConfig;
 	}
 
@@ -1278,7 +1270,10 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * Get default configuration for field type
 	 */
 	getDefaultConfigForType(fieldType) {
-		return DEFAULT_COLUMN_CONFIGS[fieldType] || DEFAULT_COLUMN_CONFIGS['Data'];
+		return (
+			this.common_det.DEFAULT_COLUMN_CONFIGS[fieldType] ||
+			this.common_det.DEFAULT_COLUMN_CONFIGS["Data"]
+		);
 	}
 
 	/**
@@ -1286,31 +1281,31 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 */
 	addColumnValidations(config, col) {
 		if (!col.df) return;
-		
+
 		const validations = [];
-		
+
 		// Add type-specific validations
-		if (col.df.fieldtype === 'Int' || col.df.fieldtype === 'Float') {
+		if (col.df.fieldtype === "Int" || col.df.fieldtype === "Float") {
 			if (col.df.non_negative) {
 				validations.push({
-					type: 'number',
-					criteria: '>=',
+					type: "number",
+					criteria: ">=",
 					value: [0],
-					action: 'warning'
+					action: "warning",
 				});
 			}
 		}
-		
+
 		// Add length validation for text fields
-		if (col.df.length && (col.df.fieldtype === 'Data' || col.df.fieldtype === 'Long Text')) {
+		if (col.df.length && (col.df.fieldtype === "Data" || col.df.fieldtype === "Long Text")) {
 			validations.push({
-				type: 'textLength',
-				criteria: '<=',
+				type: "textLength",
+				criteria: "<=",
 				value: [col.df.length],
-				action: 'warning'
+				action: "warning",
 			});
 		}
-		
+
 		if (validations.length) {
 			this.jss_det.columnValidations.set(config.name, validations);
 		}
@@ -1322,12 +1317,12 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	store_header_idx() {
 		const columns = this.jss_det.columns;
 		const columnsIdx = Object.create(null);
-		
+
 		// Use forEach for better performance with large arrays
 		columns.forEach((col, index) => {
 			columnsIdx[col.name] = index;
 		});
-		
+
 		this.jss_det.columnsIdx = columnsIdx;
 	}
 	//#endregion JSpreadsheet Header related functions.

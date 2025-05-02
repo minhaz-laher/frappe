@@ -11,7 +11,7 @@ export default class CMComponentList {
 		this._searchCache = new Map(); // Cache for Google search URLs
 	}
 
-	//#region List View Action Menu
+	//#region List View Action Menu 
 	/**
 	 * Adds custom actions to the list view's actions menu.
 	 * @param {Array} actions_menu_items - Existing list of actions menu items to be extended.
