@@ -10,6 +10,47 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		return "Cmlistjss";
 	}
 
+	// We will improve variable declarations.
+	// Cache for column configurations to avoid redundant processing
+	var columnConfigCache = new Map();
+
+	// Default column configurations for different field types
+	var DEFAULT_COLUMN_CONFIGS = {
+		'Data': {
+			type: 'text',
+			width: 230,
+			wrap: true
+		},
+		'Long Text': {
+			type: 'text',
+			width: 350,
+			wrap: true,
+			render: 'cm_render_long_text_element'
+		},
+		'Int': {
+			type: 'number',
+			width: 100,
+			align: 'right',
+			validation: 'numeric'
+		},
+		'Float': {
+			type: 'number',
+			width: 100,
+			align: 'right',
+			validation: 'numeric'
+		},
+		'Date': {
+			type: 'calendar',
+			width: 120,
+			options: { format: 'DD/MM/YYYY' }
+		},
+		'Link': {
+			type: 'text',
+			width: 200,
+			render: 'cm_render_link_element'
+		}
+	};
+
 	/**
 	 * Constructor function to initialize the view.
 	 * - Loads required assets.
@@ -613,25 +654,37 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * based on their defined field types and metadata.
 	 */
 	prepare_jss_validations() {
-		// IN: We need to plan the validation flow and determine how many types of validations we want to support.
-		this.jss_det.validations = [];
-		for (let i = 0, len = this.jss_det.columns.length; i < len; i++) {
-			const col = this.jss_det.columns[i];
-			if (col.cmMeta) {
-				switch (col.cmMeta.df.fieldtype) {
-					case "Data":
-						this.manageTextValidations(col.cmMeta.df, i);
-						break;
-					case "Int":
-					case "Float":
-						this.manageNumericValidations(col.cmMeta.df, i);
-						break;
-					// NOTE: we can add other validations here.
-					default:
-						break;
-				}
-			}
+		if (!this.jss_det.columnValidations) {
+			this.jss_det.columnValidations = new Map();
 		}
+		
+		this.jss_det.validations = [];
+		
+		// Process validations from columnValidations map
+		this.jss_det.columnValidations.forEach((validations, columnName) => {
+			const colIndex = this.jss_det.columnsIdx[columnName];
+			if (colIndex === undefined) {
+				console.warn(`Column ${columnName} not found in columnsIdx map`);
+				return;
+			}
+			
+			try {
+				const colLetter = this.get_column_name_by_index(colIndex);
+				validations.forEach(validation => {
+					if (!validation.type) {
+						console.warn(`Validation missing type for column ${columnName}`);
+						return;
+					}
+					
+					this.jss_det.validations.push({
+						range: `Sheet1!${colLetter}:${colLetter}`,
+						...validation
+					});
+				});
+			} catch (error) {
+				console.error(`Error processing validations for column ${columnName}:`, error);
+			}
+		});
 	}
 	//#endregion Manage validations
 
@@ -1134,126 +1187,147 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	//#region JSpreadsheet Header related functions.
 
 	/**
-	 * Generates the field header based on field type and column settings.
-	 */
-	generate_field_header_by_field_type(col) {
-		// Set default header properties common to all field types
-		const defaultHeader = {
-			name: col.df.fieldname,
-			title: col.df.label,
-			type: "text", // Default type as text, can be overridden
-			width: +col.df.width || 230, // Default width
-			wrap: true, // Enable wrapping by default,
-			cmMeta: col,
-		};
-
-		// Adjust properties based on field type
-		switch (col.df.fieldtype) {
-			case "Long Text":
-				defaultHeader.width = +col.df.width || 350;
-				defaultHeader.render = this.cm_render_long_text_element.bind(this);
-				break;
-
-			case "Int":
-			case "Float":
-				defaultHeader.type = "number"; // Use number type for Int and Float
-				defaultHeader.width = +col.df.width || 100;
-				defaultHeader.align = "right";
-				// IN:: Pending:: Apply mask based on database
-				break;
-
-			case "Currency":
-				// Customize for Currency (could be a formatted number)
-				// defaultHeader.type = "number";
-				// defaultHeader.width = +col.df.width || 100;
-				break;
-
-			case "Date":
-				// Handle Date, Time, and Datetime types here
-				// IN :: In the future, we need to set the format according to the DB format.
-				defaultHeader.type = "calendar";
-				defaultHeader.options = { format: "DD/MM/YYYY" };
-				break;
-
-			case "Time":
-				defaultHeader.type = "calendar";
-				break;
-
-			case "Datetime":
-				defaultHeader.type = "calendar";
-				break;
-
-			case "Percent":
-				// For Percent, we might want to handle it differently, like appending "%" symbol
-				// defaultHeader.type = "number";
-				// defaultHeader.options = { style: "percent" };
-				// Apply additional logic for formatting as a percentage
-				break;
-
-			case "Data":
-				// No change to the defaultHeader data for "Data" type
-				break;
-
-			case undefined:
-				if (col.type === "Subject") {
-					defaultHeader.render = this.cm_render_link_element.bind(this);
-					defaultHeader.readOnly = true;
-				}
-				break;
-
-			default:
-				// No changes for unsupported types
-				break;
-		}
-
-		if (this.cm_control_list?.generate_field_header_by_field_type) {
-			this.cm_control_list?.generate_field_header_by_field_type?.(defaultHeader);
-		}
-
-		// Return the final header configuration
-		return defaultHeader;
-	}
-
-	/**
-	 * Prepares the column definitions for JSpreadsheet based on the data type of the Doctype.
+	 * Enhanced column header preparation with caching and improved flexibility
 	 */
 	prepare_jss_source_header() {
-		// Ensure columns are available before proceeding
 		if (!this.columns) return;
-		this.jss_det.validListFields = new Set(); // Use Set for faster lookups
-
-		// Define hidden columns for internal use
-		const hiddenColumns = [
-			{ name: "_otherDet", type: "hidden" },
-			{ name: "_rowCheckbox", type: "checkbox", width: 38 },
-		];
-
-		// Transform columns into JSpreadsheet format
-		const visibleColumns = this.columns
-			.filter((col) => col.type === "Field" || col.type === "Subject") // Process only 'Field' type columns
-			.map((col) => {
-				this.jss_det.validListFields.add(col.df.fieldname);
-				return this.generate_field_header_by_field_type(col);
-			});
-
-		// Combine hidden and visible columns
+		
+		// Initialize data structures
+		this.jss_det.validListFields = new Set();
+		this.jss_det.columns = [];
+		this.jss_det.columnValidations = new Map();
+		
+		// Process hidden columns
+		const hiddenColumns = this.getHiddenColumns();
+		
+		// Process visible columns with caching
+		const visibleColumns = this.processVisibleColumns();
+		
+		// Combine and store columns
 		this.jss_det.columns = [...hiddenColumns, ...visibleColumns];
+		
+		// Store indices and prepare validations
 		this.store_header_idx();
 		this.prepare_jss_validations();
 	}
 
 	/**
-	 * Stores the index of each column in the `columnsIdx` object for quick lookup.
-	 * This improves performance when accessing column positions by name.
+	 * Get hidden columns configuration
+	 */
+	getHiddenColumns() {
+		return [
+			{ 
+				name: "_otherDet", 
+				type: "hidden",
+				width: 0
+			},
+			{ 
+				name: "_rowCheckbox", 
+				type: "checkbox", 
+				width: 38,
+				align: "center"
+			}
+		];
+	}
+
+	/**
+	 * Process visible columns with caching
+	 */
+	processVisibleColumns() {
+		return this.columns
+			.filter(col => col.type === "Field" || col.type === "Subject")
+			.map(col => {
+				const cacheKey = `${col.df.fieldname}_${col.df.fieldtype}`;
+				
+				// Check cache first
+				if (columnConfigCache.has(cacheKey)) {
+					return columnConfigCache.get(cacheKey);
+				}
+				
+				// Generate and cache new configuration
+				const config = this.generateColumnConfig(col);
+				columnConfigCache.set(cacheKey, config);
+				
+				return config;
+			});
+	}
+
+	/**
+	 * Generate column configuration with enhanced type handling
+	 */
+	generateColumnConfig(col) {
+		const defaultConfig = {
+			name: col.df.fieldname,
+			title: col.df.label,
+			cmMeta: col,
+			...this.getDefaultConfigForType(col.df.fieldtype)
+		};
+		
+		// Apply custom configurations if provided
+		if (this.cm_control_list?.generate_field_header_by_field_type) {
+			this.cm_control_list.generate_field_header_by_field_type(defaultConfig);
+		}
+		
+		// Add custom validations if needed
+		this.addColumnValidations(defaultConfig, col);
+		
+		return defaultConfig;
+	}
+
+	/**
+	 * Get default configuration for field type
+	 */
+	getDefaultConfigForType(fieldType) {
+		return DEFAULT_COLUMN_CONFIGS[fieldType] || DEFAULT_COLUMN_CONFIGS['Data'];
+	}
+
+	/**
+	 * Add column validations
+	 */
+	addColumnValidations(config, col) {
+		if (!col.df) return;
+		
+		const validations = [];
+		
+		// Add type-specific validations
+		if (col.df.fieldtype === 'Int' || col.df.fieldtype === 'Float') {
+			if (col.df.non_negative) {
+				validations.push({
+					type: 'number',
+					criteria: '>=',
+					value: [0],
+					action: 'warning'
+				});
+			}
+		}
+		
+		// Add length validation for text fields
+		if (col.df.length && (col.df.fieldtype === 'Data' || col.df.fieldtype === 'Long Text')) {
+			validations.push({
+				type: 'textLength',
+				criteria: '<=',
+				value: [col.df.length],
+				action: 'warning'
+			});
+		}
+		
+		if (validations.length) {
+			this.jss_det.columnValidations.set(config.name, validations);
+		}
+	}
+
+	/**
+	 * Enhanced header index storage with performance optimization
 	 */
 	store_header_idx() {
 		const columns = this.jss_det.columns;
 		const columnsIdx = Object.create(null);
-
-		for (let i = 0, len = columns.length; i < len; i++) {
-			columnsIdx[columns[i].name] = i;
-		}
-
+		
+		// Use forEach for better performance with large arrays
+		columns.forEach((col, index) => {
+			columnsIdx[col.name] = index;
+		});
+		
 		this.jss_det.columnsIdx = columnsIdx;
 	}
 	//#endregion JSpreadsheet Header related functions.
