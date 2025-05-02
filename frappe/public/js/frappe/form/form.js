@@ -2169,6 +2169,8 @@ frappe.ui.form.Form = class FrappeForm {
 				field.on_section_collapse(!in_tab); // hide = !in_tab
 			}
 		}
+
+		this.cm_control_form?.set_active_tab?.(tab);
 	}
 
 	get_active_tab() {

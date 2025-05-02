@@ -29,7 +29,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 		this.onResize = this.onResize.bind(this);
 		window.addEventListener("resize", this.onResize);
 
-		this.allowToAddCustomLog = true;
+		this.allowToAddCustomLog = false;
 		this.disable_jss_list_update = true; // If true, the JSpreadsheet list will not update on a socket I/O call. Think of a scenario where we are updating data, and the list gets refreshed.
 
 		// Note: Commented out the above code due to issues in cleanup.
@@ -58,7 +58,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 * @returns {string} - The corresponding Excel-style column name.
 	 */
 	get_column_name_by_index(index) {
-		return jspreadsheet.helpers.getColumnName(index);
+		return jspreadsheet?.helpers.getColumnName(index);
 	}
 	//#endregion Common Jspreadsheet utils
 
@@ -443,16 +443,24 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 	 *                    otherwise, an array of objects containing the checked rows.
 	 */
 	get_checked_items(only_docnames) {
-		const docnames = this.jss_det.checked_row_det;
-
-		if (only_docnames) return docnames;
-
-		const listData = this.data.map(({ _otherDet, ...rest }) => ({
-			...rest,
-			..._otherDet,
-		}));
-
-		return listData;
+		const checkedDocnames = this.jss_det.checked_row_det;
+	
+		// Return early if only docnames are requested
+		if (only_docnames) return checkedDocnames;
+	
+		const checkedSet = new Set(checkedDocnames);
+		const selectedItems = [];
+	
+		for (let i = 0; i < this.data.length; i++) {
+			const row = this.data[i].data || this.data[i];
+			const combinedItem = Object.assign({}, row, row._otherDet);
+	
+			if (checkedSet.has(combinedItem.name)) {
+				selectedItems.push(combinedItem);
+			}
+		}
+	
+		return selectedItems;
 	}
 
 	/**
@@ -867,8 +875,7 @@ frappe.views.CmlistjssView = class CmlistjssView extends frappe.views.ListView {
 
 			if (this.jss_instance[0].hasErrors(x, y)) {
 				console.warn(
-					`CM: Invalid data detected in column "${cellProperty.title}", row ${
-						+y + 1
+					`CM: Invalid data detected in column "${cellProperty.title}", row ${+y + 1
 					}. This data will not be saved to the database.`
 				);
 				return;

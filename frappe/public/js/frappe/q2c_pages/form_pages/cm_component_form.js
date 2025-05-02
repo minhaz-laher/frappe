@@ -49,8 +49,28 @@ export default class CMComponentForm {
 	 * We can customize the form rendering. For example, in an HTML field, we can load any custom HTML content.
 	 */
 	render_form() {
-		this.cm_control_frm.fields_dict.cm_bom_html.wrapper.fieldobj.set_value(
-			"welcome to <b>frappe</b>"
-		);
+		// console.log("Called render_form")
+		// this.cm_control_frm.fields_dict.cm_bom_html.wrapper.fieldobj.set_value(
+		// 	"welcome to <b>frappe</b>"
+		// );
+		// const bomTab = this.cm_control_frm.layout.tabs.find(t => t.label === "BOM");
+		// if(bomTab){
+		// 	bomTab.toggle(false);
+		// }
+	}
+
+	/**
+	 * Handles logic to be executed when a tab is activated.
+	 *
+	 * @param {Object} tab - The tab object containing tab details such as label and fields.
+	 */
+	set_active_tab(tab) {
+		// Ensure the tab has a label and the label is "BOM"
+		if (tab?.label === "BOM") {
+			// Safely access the nested cm_bom_html field object
+			const bomField = tab.fields_dict?.cm_bom_html?.wrapper?.fieldobj;
+
+			bomField?.set_value?.("Welcome to <b>Frappe</b>");
+		}
 	}
 }

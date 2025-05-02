@@ -15,7 +15,7 @@ export default class CMComponentList {
 		const goToBOM = () => ({
 			label: __("Go to BOM", null, "Button in list view actions menu"),
 			action: () => {
-				const selectedDocs = this.pr_list_view.get_checked_items(true);
+				const selectedDocs = this.pr_list_view.get_checked_items();
 
 				if (selectedDocs.length !== 1) {
 					frappe.msgprint({
@@ -26,14 +26,9 @@ export default class CMComponentList {
 					return;
 				}
 
-				const selectedDocName = selectedDocs[0];
-				const selectedDoc = this.pr_list_view.data.find(
-					(item) => item.name === selectedDocName
-				);
-				const category = +selectedDoc?.category || +selectedDoc?._otherDet?.category;
-
-				if (category === 3) {
-					frappe.set_route("cm-rfq-lineitems", "cmpage", "bom", selectedDocName);
+				const selectedDoc = selectedDocs[0];
+				if (selectedDoc?.category === 3) {
+					frappe.set_route("cm-rfq-lineitems", "cmpage", "bom", selectedDoc?.name);
 				} else {
 					frappe.msgprint({
 						title: "Notification",
