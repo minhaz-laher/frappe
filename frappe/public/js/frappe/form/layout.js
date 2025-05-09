@@ -14,6 +14,11 @@ frappe.ui.form.Layout = class Layout {
 		this.fields_dict = {};
 		this.section_count = 0;
 		this.column_count = 0;
+		
+		// Add support for nesting context
+		this.nesting_level = 0;
+		this.nesting_stack = [];
+		this.parent_stack = [];
 
 		$.extend(this, opts);
 	}
@@ -172,6 +177,7 @@ frappe.ui.form.Layout = class Layout {
 		}
 
 		fields.forEach((df) => {
+			// Process field based on its type
 			switch (df.fieldtype) {
 				case "Fold":
 					this.make_page(df);
@@ -188,6 +194,10 @@ frappe.ui.form.Layout = class Layout {
 					break;
 				case "Tab Break":
 					this.make_tab(df);
+					break;
+				case "Nested Section End":
+					// Handle the end of a nested section
+					this.end_nested_section();
 					break;
 				default:
 					this.make_field(df);
@@ -308,33 +318,79 @@ frappe.ui.form.Layout = class Layout {
 			df.fieldname = `__section_${this.section_count}`;
 			df.fieldtype = "Section Break";
 		}
-
+		
+		// Determine parent element for this section
+		let parent;
+		
+		if (df.is_nested) {
+			// For nested sections, always use the current column as parent
+			parent = this.column.form;
+			
+			// Push current context to stack before creating new section
+			this.push_nesting_context();
+		} else {
+			// Regular section, place in tab or page
+			parent = this.current_tab ? this.current_tab.wrapper : this.page;
+		}
+		
 		this.section = new Section(
-			this.current_tab ? this.current_tab.wrapper : this.page,
+			parent,
 			df,
 			this.card_layout,
 			this
 		);
+		
+		if (df.is_nested) {
+			this.section.wrapper.addClass('nested-section');
+			
+			// Track the nested section in the column
+			if (this.column && this.column.add_nested_section) {
+				this.column.add_nested_section(this.section);
+			}
+		}
+		
 		this.sections.push(this.section);
 		this.sections_dict[df.fieldname] = this.section;
-
+		
 		// append to layout fields
 		if (df) {
 			this.fields_dict[df.fieldname] = this.section;
 			this.fields_list.push(this.section);
 		}
-
+		
 		this.column = null;
+	}
+	
+	// Helper method to track nesting state
+	push_nesting_context() {
+		this.nesting_level++;
+		this.nesting_stack.push({
+			section: this.section,
+			column: this.column
+		});
+		
+		this.parent_stack.push(this.column);
+	}
+	
+	// Method to end a nested section
+	end_nested_section() {
+		if (this.nesting_level > 0) {
+			this.nesting_level--;
+			let context = this.nesting_stack.pop();
+			this.section = context.section;
+			this.column = context.column;
+			this.parent_stack.pop();
+		}
 	}
 
 	make_column(df = {}) {
 		this.column_count++;
 		if (!df.fieldname) {
-			df.fieldname = `__column_${this.section_count}`;
+			df.fieldname = `__column_${this.column_count}`;
 			df.fieldtype = "Column Break";
 		}
-
-		this.column = new Column(this.section, df);
+		
+		this.column = new Column(this.section, df, this.nesting_level);
 		if (df && df.fieldname) {
 			this.fields_list.push(this.column);
 		}

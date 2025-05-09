@@ -1,0 +1,24 @@
+/* Nested section styling */
+.nested-section {
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    margin: 10px 0;
+    background: var(--control-bg);
+}
+
+.nested-section .section-head {
+    padding: 8px 15px;
+    font-size: 0.9rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.nested-section .section-body {
+    padding: 10px;
+}
+
+/* Basic responsive handling */
+@media (max-width: 767px) {
+    .nested-section .section-body {
+        padding: 8px;
+    }
+} 

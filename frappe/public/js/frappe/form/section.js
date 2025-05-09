@@ -7,7 +7,8 @@ export default class Section {
 		this.columns = [];
 		this.fields_list = [];
 		this.fields_dict = {};
-
+		this.nested_sections = []; // Track nested sections
+		
 		this.make();
 
 		if (
@@ -27,9 +28,11 @@ export default class Section {
 
 	make() {
 		let make_card = this.card_layout;
+		let is_nested = this.df.is_nested ? 'nested-section' : '';
+		
 		this.wrapper = $(`<div class=
 				"${this.df.is_dashboard_section ? "form-dashboard-section" : "form-section"}
-				${make_card ? "card-section" : ""}" data-fieldname="${this.df.fieldname}">
+				${make_card ? "card-section" : ""} ${is_nested}" data-fieldname="${this.df.fieldname}">
 			`).appendTo(this.parent);
 
 		if (this.df) {
@@ -38,7 +41,7 @@ export default class Section {
 			}
 			if (this.df.description) {
 				this.description_wrapper = $(
-					`<div class="col-sm-12 form-section-description">
+					`<div class="form-section-description">
 						${__(this.df.description)}
 					</div>`
 				);
@@ -83,6 +86,11 @@ export default class Section {
 		}
 	}
 
+	// Track nested section
+	add_nested_section(section) {
+		this.nested_sections.push(section);
+	}
+
 	replace_field(fieldname, fieldobj) {
 		if (this.fields_dict[fieldname]?.df) {
 			const olfldobj = this.fields_dict[fieldname];
@@ -104,6 +112,11 @@ export default class Section {
 		// hide if explicitly hidden
 		hide = hide || this.df.hidden || this.df.hidden_due_to_dependency;
 		this.wrapper.toggleClass("hide-control", !!hide);
+		
+		// Refresh nested sections too
+		this.nested_sections.forEach(section => {
+			section.refresh();
+		});
 	}
 
 	collapse(hide) {
