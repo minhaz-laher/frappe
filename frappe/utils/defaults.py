@@ -40,6 +40,7 @@ def get_not_null_defaults(column_type: str) -> Literal["", 0] | None:
 		"Time": str,
 		"Table": list,
 		"Table MultiSelect": list,
+		"CustomAutocomplete": str,
 	}
 	data_type = column_type_map.get(column_type.replace(" ", ""), str)
 	# data_type = eval(f"frappe.types.DF.{column_type.replace(' ', '')}")

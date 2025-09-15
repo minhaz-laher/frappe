@@ -42,6 +42,7 @@ frappe.ui.form.Form = class FrappeForm {
 		this.undo_manager = new UndoManager({ frm: this });
 		this.setup_meta(doctype);
 		this.debounced_reload_doc = frappe.utils.debounce(this.reload_doc.bind(this), 1000);
+		this.initialize_custom_form();
 
 		this.beforeUnloadListener = (event) => {
 			event.preventDefault();
@@ -49,6 +50,13 @@ frappe.ui.form.Form = class FrappeForm {
 			return (event.returnValue =
 				"There are unsaved changes, are you sure you want to exit?");
 		};
+	}
+
+	/**
+	 * Initialize a custom form class based on the passed DocType to customize the form page according to the DocType.
+	 */
+	async initialize_custom_form() {
+		this.cm_control_form = await frappe.views.make_control_form(this); // For customize form view based on doc type.
 	}
 
 	setup_meta() {
@@ -597,6 +605,7 @@ frappe.ui.form.Form = class FrappeForm {
 		if (!this.meta.istable) {
 			this.layout.doc = this.doc;
 			this.layout.attach_doc_and_docfields();
+			this.cm_control_form?.render_form?.();
 
 			if (frappe.boot.desk_settings.form_sidebar) {
 				this.sidebar = new frappe.ui.form.Sidebar({
@@ -734,6 +743,7 @@ frappe.ui.form.Form = class FrappeForm {
 				this.toolbar.current_status = undefined;
 			}
 			this.toolbar.refresh();
+			this.cm_control_form?.refresh_header?.();
 		}
 		this.viewers.refresh();
 
@@ -2159,6 +2169,8 @@ frappe.ui.form.Form = class FrappeForm {
 				field.on_section_collapse(!in_tab); // hide = !in_tab
 			}
 		}
+
+		this.cm_control_form?.set_active_tab?.(tab);
 	}
 
 	get_active_tab() {

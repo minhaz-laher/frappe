@@ -36,3 +36,4 @@ TextEditor = Text
 Time = str | time
 Table = list
 TableMultiSelect = list
+CustomAutocomplete = Data

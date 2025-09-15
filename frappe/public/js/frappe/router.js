@@ -68,7 +68,7 @@ $("body").on("click", "a", function (e) {
 frappe.router = {
 	current_route: null,
 	routes: {},
-	factory_views: ["form", "list", "report", "tree", "print", "dashboard"],
+	factory_views: ["form", "list", "report", "tree", "print", "dashboard", "cmpage"],
 	list_views: [
 		"list",
 		"kanban",
@@ -80,6 +80,7 @@ frappe.router = {
 		"image",
 		"inbox",
 		"map",
+		"cmlistjss",
 	],
 	list_views_route: {
 		list: "List",
@@ -93,6 +94,7 @@ frappe.router = {
 		inbox: "Inbox",
 		file: "Home",
 		map: "Map",
+		cmlistjss: "Cmlistjss",
 	},
 	layout_mapped: {},
 
@@ -204,10 +206,14 @@ frappe.router = {
 				);
 			} else if (route[1] && route[1] !== "view") {
 				let docname = route[1];
-				if (route.length > 2) {
-					docname = route.slice(1).join("/");
+				if (route[1] === "cmpage") {
+					route = ["CMPage", doctype_route.doctype, ...route.slice(2)];
+				} else {
+					if (route.length > 2) {
+						docname = route.slice(1).join("/");
+					}
+					route = ["Form", doctype_route.doctype, docname];
 				}
-				route = ["Form", doctype_route.doctype, docname];
 			} else if (frappe.model.is_single(doctype_route.doctype)) {
 				route = ["Form", doctype_route.doctype, doctype_route.doctype];
 			} else if (meta.default_view) {

@@ -1,0 +1,163 @@
+.jss {
+	border-bottom: 1px solid var(--border_color, #ccc);
+	border-right: 1px solid var(--border_color, #ccc);
+}
+
+.jss>thead>tr>th {
+	border-top: 1px solid var(--border_color, #ccc);
+	border-left: 1px solid var(--border_color, #ccc);
+	background-color: var(--content_background, #fff);
+	color: var(--content_color, #000);
+}
+
+.jss>thead>tr>th:first-child {
+	box-shadow: 1px 0 0 0 var(--border_color, #ccc);
+}
+
+.jss>tbody>tr>td:first-child,
+.jss>thead>tr>th {
+	background-color: var(--header_background, #f3f3f3);
+	color: var(--header_color, #000);
+}
+
+.jss>tbody>tr.selected>td:first-child,
+.jss>thead>tr>th.selected {
+	background-color: var(--header_background_highlighted, #dcdcdc);
+	color: var(--header_color_highlighted, #000)
+}
+
+.jss>tbody>tr>td {
+	border-top: 1px solid var(--border_color, #ccc);
+	border-left: 1px solid var(--border_color, #ccc);
+	background-color: var(--content_background, #fff);
+	color: var(--content_color, #000);
+}
+
+.jss>tbody>tr>td.jss_cursor {
+	background-color: var(--cursor, #eee);
+}
+
+.jss>tbody>tr>td.jss_cursor a {
+	color: var(--active_color, #007aff)
+}
+
+.jss_pagination>div>div {
+	color: var(--header_color, #000);
+	background: var(--header_background, #f3f3f3);
+	border: 1px solid var(--border_color, #ccc)
+}
+
+.jss_container input,
+.jss_container select,
+.jss_page {
+	color: var(--header_color, #000);
+	background: var(--header_background, #f3f3f3);
+	border: 1px solid var(--border_color, #ccc)
+}
+
+.jss .jtabs .jtabs-headers>div {
+	background-color: var(--header_background, #f3f3f3);
+	color: var(--header_color, #000);
+}
+
+.jss .jtabs .jtabs-headers>div.jtabs-selected {
+	background-color: var(--header_background_highlighted, #dcdcdc);
+	color: var(--header_color_highlighted, #000);
+}
+
+.jss_contextmenu {
+	border: 1px solid var(--border_color, #ccc);
+	background: var(--menu_background, #ebebeb);
+	color: var(--menu_color, #555);
+	box-shadow: var(--menu_box_shadow, 2px 2px 2px 0px rgba(143, 144, 145, 1));
+	-webkit-box-shadow: var(--menu_box_shadow, 2px 2px 2px 0px rgba(143, 144, 145, 1));
+	-moz-box-shadow: var(--menu_box_shadow, 2px 2px 2px 0px rgba(143, 144, 145, 1))
+}
+
+.jss_contextmenu>div a {
+	color: var(--menu_color, #555)
+}
+
+.jss_contextmenu>div:not(.contextmenu-line):hover a {
+	color: var(--menu_color_highlighted, #555)
+}
+
+.jss_contextmenu>div:not(.contextmenu-line):hover {
+	background: var(--menu_background_highlighted, #ebebeb)
+}
+
+.jss_dropdown .jdropdown-container,
+.jss_dropdown .jdropdown-content {
+	background-color: var(--content_background, #fff);
+	color: var(--content_color, #000)
+}
+
+.jss_dropdown .jdropdown-item {
+	color: var(--content_color, #000)
+}
+
+.jss_dropdown .jdropdown-cursor,
+.jss_dropdown .jdropdown-item:hover,
+.jss_dropdown .jdropdown-selected {
+	background-color: var(--content_background_highlighted, #00000077);
+	color: var(--content_color_highlighted, #000)
+}
+
+.jss .jcalendar-content {
+	background-color: var(--header_background, #f3f3f3);
+	color: var(--header_color, #000)
+}
+
+.jss .jcalendar-content>table {
+	background-color: var(--content_background, #fff);
+	color: var(--content_color, #000)
+}
+
+.jss .jcalendar-weekday {
+	background-color: var(--content_background_highlighted, #00000077);
+	color: var(--content_color_highlighted, #000)
+}
+
+.jss .jcalendar-sunday {
+	color: var(--header_color, #000)
+}
+
+.jss .jcalendar-selected {
+	background-color: var(--content_background_highlighted, #00000077);
+	color: var(--content_color_highlighted, #000)
+}
+
+.jss_toolbar {
+	background-color: var(--header_background, #f3f3f3);
+	color: var(--header_color, #000);
+	border-color: var(--border_color, #ccc);
+}
+
+.jss_toolbar .jtoolbar-item i {
+	color: var(--content_color, #000);
+}
+
+.jss_toolbar .jtoolbar-item i:hover {
+	background: var(--content_background_highlighted, #00000077);
+	color: var(--content_color_highlighted, #000)
+}
+
+.jss_toolbar .jtoolbar-divisor {
+	background: var(--header_color, #000);
+}
+
+.jss_content::-webkit-scrollbar-track {
+	background: var(--header_background, #f3f3f3);
+}
+
+.jss_content::-webkit-scrollbar-thumb {
+	background: var(--header_background_highlighted, #dcdcdc);
+}
+
+.jss_border_main {
+	border: 1px solid var(--border_color_highlighted, #000);
+}
+
+.jss_border_cloning {
+	border: 1px dashed var(--border_color_highlighted, #000);
+}

@@ -45,6 +45,10 @@ frappe.form.formatters = {
 	Autocomplete: function (value, df) {
 		return __(frappe.form.formatters["Data"](value, df));
 	},
+	CustomAutocomplete: function (value, df) {
+		// Not sure on purpose/From where it called.
+		return __(frappe.form.formatters["Data"](value, df));
+	},
 	Select: function (value, df) {
 		return __(frappe.form.formatters["Data"](value, df));
 	},

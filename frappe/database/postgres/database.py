@@ -164,6 +164,7 @@ class PostgresDatabase(PostgresExceptionUtil, Database):
 			"Phone": ("varchar", self.VARCHAR_LEN),
 			"Autocomplete": ("varchar", self.VARCHAR_LEN),
 			"JSON": ("json", ""),
+			"CustomAutocomplete": ("varchar", self.VARCHAR_LEN),			
 		}
 
 	@property

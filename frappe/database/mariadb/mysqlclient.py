@@ -230,6 +230,7 @@ class MariaDBDatabase(MariaDBConnectionUtil, MariaDBExceptionUtil, Database):
 			"Phone": ("varchar", self.VARCHAR_LEN),
 			"Autocomplete": ("varchar", self.VARCHAR_LEN),
 			"JSON": ("json", ""),
+			"CustomAutocomplete": ("varchar", self.VARCHAR_LEN),
 		}
 
 	def get_database_size(self):

@@ -14,6 +14,7 @@ $.extend(frappe.model, {
 		"Code",
 		"Color",
 		"Currency",
+		"CustomAutocomplete",
 		"Data",
 		"Date",
 		"Datetime",

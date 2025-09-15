@@ -7,6 +7,8 @@ export default class Tab {
 		this.label = this.df && this.df.label;
 		this.tab_link_container = tab_link_container;
 		this.tabs_content = tabs_content;
+		this.fields_list = [];
+		this.fields_dict = {};
 		this.make();
 		this.setup_listeners();
 		this.refresh();
@@ -75,6 +77,8 @@ export default class Tab {
 
 	add_field(fieldobj) {
 		fieldobj.tab = this;
+		this.fields_list.push(fieldobj);
+		this.fields_dict[fieldobj.df.fieldname] = fieldobj;
 	}
 
 	replace_field(fieldobj) {

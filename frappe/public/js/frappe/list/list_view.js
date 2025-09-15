@@ -39,8 +39,12 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 		return frappe.perm.has_perm(this.doctype, 0, "read");
 	}
 
-	show() {
+	async show(isCmControlListLoaded) {
 		this.parent.disable_scroll_to_top = true;
+		if (!isCmControlListLoaded) {
+			this.parent.list_view = this;
+			this.cm_control_list = await frappe.views.make_control_list(this); // For customize list view based on doc type.
+		}
 		super.show();
 	}
 
@@ -147,7 +151,6 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 	}
 
 	setup_page() {
-		this.parent.list_view = this;
 		super.setup_page();
 	}
 
@@ -333,6 +336,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 	}
 
 	refresh(refresh_header = false) {
+		this.add_custom_log("2: refresh method called!");
 		return super.refresh().then(() => {
 			this.render_header(refresh_header);
 			this.render_count();
@@ -1537,6 +1541,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 
 	setup_realtime_updates() {
 		this.pending_document_refreshes = [];
+		this.add_custom_log("2: setup_realtime_updates fn called!");
 
 		if (this.list_view_settings?.disable_auto_refresh || this.realtime_events_setup) {
 			return;
@@ -1544,6 +1549,8 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 		frappe.realtime.doctype_subscribe(this.doctype);
 		frappe.realtime.off("list_update");
 		frappe.realtime.on("list_update", (data) => {
+			this.add_custom_log("2: list_update socket received!");
+
 			if (data?.doctype !== this.doctype) {
 				return;
 			}
@@ -1569,6 +1576,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 	}
 
 	process_document_refreshes() {
+		this.add_custom_log("2: process_document_refreshes fn called!");
 		if (!this.pending_document_refreshes.length) return;
 
 		const route = frappe.get_route() || [];
@@ -2178,6 +2186,8 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 		if (frappe.model.can_delete(doctype) && !frappe.model.has_workflow(doctype)) {
 			actions_menu_items.push(bulk_delete());
 		}
+
+		this.cm_control_list?.get_actions_menu_items?.(actions_menu_items);
 
 		return actions_menu_items;
 	}

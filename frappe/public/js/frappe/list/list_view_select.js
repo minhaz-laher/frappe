@@ -131,6 +131,10 @@ frappe.views.ListViewSelect = class ListViewSelect {
 					),
 				action: () => this.set_route("map"),
 			},
+			Cmlistjss: {
+				condition: true,
+				action: () => this.set_route("cmlistjss"),
+			},
 		};
 
 		frappe.views.view_modes.forEach((view) => {

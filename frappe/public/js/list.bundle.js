@@ -30,6 +30,9 @@ import "./frappe/views/map/map_view.js";
 import "./frappe/views/kanban/kanban_view.js";
 import "./frappe/views/inbox/inbox_view.js";
 import "./frappe/views/file/file_view.js";
+import "./frappe/views/cmlistjss/cmlistjssview.js";
+import "./frappe/q2c_pages/list_pages/control_list.js";
+import "./frappe/q2c_pages/form_pages/control_form.js";
 
 import "./frappe/views/treeview.js";
 import "./frappe/views/interaction.js";
@@ -40,3 +43,6 @@ import "./frappe/views/image/photoswipe_dom.html";
 import "./frappe/views/kanban/kanban_board.html";
 import "./frappe/views/kanban/kanban_column.html";
 import "./frappe/views/kanban/kanban_card.html";
+
+import "./frappe/custom_page/cm_factory.js";
+import "./frappe/custom_page/bom_view.js";

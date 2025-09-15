@@ -384,6 +384,7 @@ frappe.ui.GroupBy = class {
 					"Dynamic Link",
 					"Autocomplete",
 					"Date",
+					"CustomAutocomplete"
 				].includes(f.fieldtype)
 			);
 		this.group_by_fields[this.doctype] = fields.sort((a, b) =>
